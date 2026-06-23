@@ -7,7 +7,7 @@ from src.schemas import GraphState
 try:
     from langchain_text_splitters import RecursiveCharacterTextSplitter
 except ImportError:
-    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.text_splitters import RecursiveCharacterTextSplitter
 
 def extract_text(file_path: str, file_type: str) -> str:
     """Extracts raw text from a PDF, txt, or md file.

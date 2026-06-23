@@ -10,7 +10,7 @@ def web_search(query: str) -> list[dict]:
         ValueError: If TAVILY_API_KEY environment variable is not set.
         RuntimeError: If the search API request fails after retries.
     """
-    api_key = os.getenv("TAVILY_API_KEY")
+    api_key = os.getenv("TAVILY_API_KEY", "").strip()
     if not api_key:
         raise ValueError("TAVILY_API_KEY environment variable is not set")
         

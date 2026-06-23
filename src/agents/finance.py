@@ -3,7 +3,7 @@ import textwrap
 from src.schemas import GraphState
 from src.agents.base_wrapper import call_agent_with_retry
 from src.tools.financial_calc import financial_calculator
-from tests.fixtures.mock_tools import doc_retrieval
+from src.tools.doc_retrieval import doc_retrieval
 from langsmith import traceable
 
 SYSTEM_PROMPT = textwrap.dedent("""

@@ -38,18 +38,29 @@ def call_agent_with_retry(
     # 1. Allow the model to use tools if any are provided
     if tools:
         model_with_tools = model.bind_tools(tools)
-        for _ in range(5):  # Max 5 tool call turns
+        for i in range(5):  # Max 5 tool call turns
+            print(f"[{role.upper()}] Turn {i+1}: Waiting for LLM response...")
             response = model_with_tools.invoke(messages)
+            print(f"[{role.upper()}] Turn {i+1}: LLM response received. Tool calls: {len(response.tool_calls)}")
             messages.append(response)
             
             if not response.tool_calls:
                 break
                 
             for tc in response.tool_calls:
-                tool_func = next((t for t in tools if t.name == tc["name"]), None)
+                tool_func = next((t for t in tools if getattr(t, "name", getattr(t, "__name__", None)) == tc["name"]), None)
                 if tool_func:
                     try:
-                        result = tool_func.invoke(tc["args"])
+                        args = dict(tc["args"])
+                        # Inject retriever for doc_retrieval if needed
+                        if getattr(tool_func, "name", getattr(tool_func, "__name__", "")) == "doc_retrieval":
+                            args["retriever"] = getattr(state, "retriever", None)
+
+                        if hasattr(tool_func, "invoke"):
+                            result = tool_func.invoke(args)
+                        else:
+                            result = tool_func(**args)
+                            
                         messages.append(ToolMessage(tool_call_id=tc["id"], content=str(result), name=tc["name"]))
                     except Exception as e:
                         messages.append(ToolMessage(tool_call_id=tc["id"], content=f"Tool error: {e}", name=tc["name"]))

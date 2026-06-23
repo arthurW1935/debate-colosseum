@@ -2,7 +2,8 @@ from typing import Dict, Any
 import textwrap
 from src.schemas import GraphState
 from src.agents.base_wrapper import call_agent_with_retry
-from tests.fixtures.mock_tools import web_search, doc_retrieval
+from src.tools.web_search import web_search
+from src.tools.doc_retrieval import doc_retrieval
 from langsmith import traceable
 
 SYSTEM_PROMPT = textwrap.dedent("""
