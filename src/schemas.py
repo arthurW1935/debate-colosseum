@@ -1,6 +1,13 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Optional, Any, Dict, List
+from typing import Literal, Optional, Any, Annotated
 from enum import Enum
+import operator
+
+def merge_dict(left: dict, right: dict) -> dict:
+    if left is None: left = {}
+    if right is None: right = {}
+    return {**left, **right}
+
 
 class Recommendation(str, Enum):
     PROCEED = "proceed"
@@ -68,11 +75,11 @@ class HumanFeedbackEntry(BaseModel):
 
 class GraphState(BaseModel):
     problem_statement: str
-    context_docs: list[str] = []
+    context_docs: Annotated[list[str], operator.add] = []
     retriever: Optional[Any] = None
-    turn1_analyses: dict[str, ExpertAnalysis] = {}
-    turn2_analyses: dict[str, ExpertAnalysis] = {}
-    feedback_analyses: dict[str, ExpertAnalysis] = {}
+    turn1_analyses: Annotated[dict[str, ExpertAnalysis], merge_dict] = {}
+    turn2_analyses: Annotated[dict[str, ExpertAnalysis], merge_dict] = {}
+    feedback_analyses: Annotated[dict[str, ExpertAnalysis], merge_dict] = {}
     disagreement_report_t1: Optional[DisagreementReport] = None
     disagreement_report_t2: Optional[DisagreementReport] = None
     arbitration_result: Optional[ArbitrationResult] = None
@@ -80,7 +87,7 @@ class GraphState(BaseModel):
     guardrail_passed: bool = False
     human_decision: Optional[Literal["approved", "feedback", "abandoned"]] = None
     current_feedback_text: Optional[str] = None
-    human_feedback_history: list[HumanFeedbackEntry] = []
+    human_feedback_history: Annotated[list[HumanFeedbackEntry], operator.add] = []
     action_status: Optional[str] = None
     current_turn: int = 1
     feedback_round: int = 0
