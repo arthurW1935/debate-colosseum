@@ -1,0 +1,14 @@
+{
+  "score": 0.8,
+  "flagged_points": [
+    {
+      "topic": "Budget",
+      "positions": {
+        "finance": "Too expensive",
+        "growth": "Worth the cost"
+      }
+    }
+  ],
+  "summary": "Finance and Growth disagree on budget.",
+  "route_decision": "proceed_to_arbiter"
+}

@@ -67,3 +67,4 @@ pytestdebug.log
 .mypy_cache/
 .pyre/
 .typeguard/
+generate_fixtures.py

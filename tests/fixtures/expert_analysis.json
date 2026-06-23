@@ -1,0 +1,23 @@
+{
+  "agent_role": "finance",
+  "round": 1,
+  "recommendation": "proceed-with-caution",
+  "confidence": 0.8,
+  "summary": "Looks okay, but watch the budget.",
+  "key_assumptions": [
+    "Budget is fixed"
+  ],
+  "supporting_evidence": [
+    "See doc A"
+  ],
+  "risks": [
+    {
+      "description": "Compliance issue",
+      "severity": "high",
+      "likelihood": "medium",
+      "mitigation": "Hire more lawyers"
+    }
+  ],
+  "dissent_notes": null,
+  "feedback_context": null
+}

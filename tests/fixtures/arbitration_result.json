@@ -1,0 +1,12 @@
+{
+  "rulings": [
+    {
+      "topic": "Budget",
+      "sided_with": "finance",
+      "reasoning": "Cost is too high"
+    }
+  ],
+  "unresolved_points": [
+    "Timeline"
+  ]
+}

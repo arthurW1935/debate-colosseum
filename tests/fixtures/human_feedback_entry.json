@@ -1,0 +1,7 @@
+{
+  "feedback_text": "Please update cost estimate.",
+  "feedback_round": 1,
+  "resolved_by": "targeted_agent",
+  "target_agent_if_any": "finance",
+  "contradiction_detected": false
+}

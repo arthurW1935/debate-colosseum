@@ -1,0 +1,20 @@
+{
+  "problem_statement": "Should we do this?",
+  "context_docs": [],
+  "retriever": null,
+  "turn1_analyses": {},
+  "turn2_analyses": {},
+  "feedback_analyses": {},
+  "disagreement_report_t1": null,
+  "disagreement_report_t2": null,
+  "arbitration_result": null,
+  "final_memo": null,
+  "guardrail_passed": false,
+  "human_decision": null,
+  "current_feedback_text": null,
+  "human_feedback_history": [],
+  "action_status": null,
+  "current_turn": 1,
+  "feedback_round": 0,
+  "run_id": "run-123"
+}

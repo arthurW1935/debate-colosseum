@@ -1,0 +1,6 @@
+{
+  "description": "Compliance issue",
+  "severity": "high",
+  "likelihood": "medium",
+  "mitigation": "Hire more lawyers"
+}

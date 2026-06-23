@@ -1,0 +1,6 @@
+{
+  "requires_agent_revision": true,
+  "target_agent": "finance",
+  "revised_memo": null,
+  "reasoning": "User asked for updated cost estimate."
+}

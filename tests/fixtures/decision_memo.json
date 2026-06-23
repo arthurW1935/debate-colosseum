@@ -1,0 +1,50 @@
+{
+  "executive_summary": "Do not proceed due to cost.",
+  "recommendation": "do-not-proceed",
+  "confidence": 0.9,
+  "expert_positions": {
+    "finance": {
+      "agent_role": "finance",
+      "round": 1,
+      "recommendation": "proceed-with-caution",
+      "confidence": 0.8,
+      "summary": "Looks okay, but watch the budget.",
+      "key_assumptions": [
+        "Budget is fixed"
+      ],
+      "supporting_evidence": [
+        "See doc A"
+      ],
+      "risks": [
+        {
+          "description": "Compliance issue",
+          "severity": "high",
+          "likelihood": "medium",
+          "mitigation": "Hire more lawyers"
+        }
+      ],
+      "dissent_notes": null,
+      "feedback_context": null
+    }
+  },
+  "key_agreements": [
+    "Need a solution"
+  ],
+  "key_disagreements": [
+    "Budget"
+  ],
+  "arbitration_summary": "Arbiter sided with finance.",
+  "risk_register": [
+    {
+      "description": "Compliance issue",
+      "severity": "high",
+      "likelihood": "medium",
+      "mitigation": "Hire more lawyers"
+    }
+  ],
+  "next_steps": [
+    "Look for cheaper alternatives"
+  ],
+  "generated_at": "2026-06-23T12:00:00Z",
+  "feedback_revision_count": 0
+}
