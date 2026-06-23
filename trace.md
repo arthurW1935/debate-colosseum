@@ -16,5 +16,9 @@ This file maintains a running log of all actions taken by the AI orchestrator an
 
 ## Current State
 - Codebase is at **Phase 0** completion.
-- **Track B Preparation:** Fixed the LangGraph state dictionary overwrite issue by adding a custom `merge_dict` reducer and `typing.Annotated` to the `GraphState` Pydantic model in `src/schemas.py`.
-- Awaiting permission to proceed with Track B execution.
+- **Track B Preparation**: Fixed the LangGraph state dictionary overwrite issue by adding a custom `merge_dict` reducer and `typing.Annotated` to the `GraphState` Pydantic model in `src/schemas.py`.
+- **Track B Execution (Checkpoint 1)**: 
+  - Created `src/tools/financial_calc.py` implementing mathematical logic for ROI, NPV, IRR, and breakeven.
+  - Implemented comprehensive tests for the financial calculator in `tests/test_tools.py` (all tests passing).
+  - Built `src/agents/base_wrapper.py` exposing `call_agent_with_retry` to handle tool binding, structured output formatting, and exact 1-retry on `ValidationError`.
+- Awaiting validation and execution of Checkpoint 2.
