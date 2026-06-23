@@ -47,7 +47,9 @@ def expert_risk(state: GraphState) -> Dict[str, Any]:
         turn=state.current_turn
     )
 
-    if state.current_turn == 1:
+    if state.action_status and state.action_status.startswith("revision_required:"):
+        return {"feedback_analyses": {"risk": analysis}}
+    elif state.current_turn == 1:
         return {"turn1_analyses": {"risk": analysis}}
     else:
         return {"turn2_analyses": {"risk": analysis}}

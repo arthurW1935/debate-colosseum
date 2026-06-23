@@ -5,7 +5,7 @@ from src.agents.synthesiser import synthesizer
 def create_mock_analysis(role: str, recommendation: Recommendation, confidence: float) -> ExpertAnalysis:
     return ExpertAnalysis(
         agent_role=role,
-        round=1,
+        round="1",
         recommendation=recommendation,
         confidence=confidence,
         summary=f"Analysis by {role}",

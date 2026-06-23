@@ -5,7 +5,7 @@ from src.agents.moderator import calculate_disagreement_score, moderator_t1, mod
 def create_mock_analysis(role: str, recommendation: Recommendation, confidence: float, risks: list[RiskItem]) -> ExpertAnalysis:
     return ExpertAnalysis(
         agent_role=role,
-        round=1,
+        round="1",
         recommendation=recommendation,
         confidence=confidence,
         summary="Test summary",

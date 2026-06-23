@@ -42,7 +42,9 @@ def expert_finance(state: GraphState) -> Dict[str, Any]:
         turn=state.current_turn
     )
 
-    if state.current_turn == 1:
+    if state.action_status and state.action_status.startswith("revision_required:"):
+        return {"feedback_analyses": {"finance": analysis}}
+    elif state.current_turn == 1:
         return {"turn1_analyses": {"finance": analysis}}
     else:
         return {"turn2_analyses": {"finance": analysis}}
