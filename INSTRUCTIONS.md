@@ -52,6 +52,12 @@ Do not commit with messages like `update`, `wip`, `fix stuff`, or `asdfgh`. If y
 - Large test PDFs — use the small fixtures in `tests/fixtures/`
 - LangSmith trace IDs hardcoded anywhere
 
+### AI Orchestrator Logging
+
+- The AI orchestrator and its subagents **MUST** maintain a running log of all major actions, design choices, codebase modifications, and workflow progressions in `trace.md` in the project root.
+- The trace log should be updated immediately after any significant structural change or file generation.
+- Keep the log concise, bulleted, and accurate.
+
 ---
 
 ## Code conventions

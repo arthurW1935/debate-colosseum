@@ -482,3 +482,106 @@ This section expands on the tasks listed in the tables above, providing technica
 - **Owner:** All
 - **Implementation:** Execute 5 eval cases. Fix schema mismatches and prompt weirdness. 
 - **Acceptance:** All 5 pass.
+
+## Appendix: Data Schemas Diagram
+
+```mermaid
+classDiagram
+    class Recommendation {
+        <<enumeration>>
+        PROCEED
+        PROCEED_WITH_CAUTION
+        DO_NOT_PROCEED
+    }
+    class RiskItem {
+        +String description
+        +String severity
+        +String likelihood
+        +String mitigation
+    }
+    class ExpertAnalysis {
+        +String agent_role
+        +String/int round
+        +Recommendation recommendation
+        +Float confidence
+        +String summary
+        +List~String~ key_assumptions
+        +List~String~ supporting_evidence
+        +List~RiskItem~ risks
+        +String dissent_notes
+        +String feedback_context
+    }
+    class DisagreementPoint {
+        +String topic
+        +Dict~String,String~ positions
+    }
+    class DisagreementReport {
+        +Float score
+        +List~DisagreementPoint~ flagged_points
+        +String summary
+        +String route_decision
+    }
+    class ArbitrationResult {
+        +List~Dict~ rulings
+        +List~String~ unresolved_points
+    }
+    class DecisionMemo {
+        +String executive_summary
+        +Recommendation recommendation
+        +Float confidence
+        +Dict~String,ExpertAnalysis~ expert_positions
+        +List~String~ key_agreements
+        +List~String~ key_disagreements
+        +String arbitration_summary
+        +List~RiskItem~ risk_register
+        +List~String~ next_steps
+        +String generated_at
+        +int feedback_revision_count
+    }
+    class SynthesizerFeedbackDecision {
+        +bool requires_agent_revision
+        +String target_agent
+        +DecisionMemo revised_memo
+        +String reasoning
+    }
+    class HumanFeedbackEntry {
+        +String feedback_text
+        +int feedback_round
+        +String resolved_by
+        +String target_agent_if_any
+        +bool contradiction_detected
+    }
+    class GraphState {
+        +String problem_statement
+        +List~String~ context_docs
+        +Any retriever
+        +Dict~String,ExpertAnalysis~ turn1_analyses
+        +Dict~String,ExpertAnalysis~ turn2_analyses
+        +Dict~String,ExpertAnalysis~ feedback_analyses
+        +DisagreementReport disagreement_report_t1
+        +DisagreementReport disagreement_report_t2
+        +ArbitrationResult arbitration_result
+        +DecisionMemo final_memo
+        +bool guardrail_passed
+        +String human_decision
+        +String current_feedback_text
+        +List~HumanFeedbackEntry~ human_feedback_history
+        +String action_status
+        +int current_turn
+        +int feedback_round
+        +String run_id
+    }
+    
+    ExpertAnalysis --> Recommendation
+    ExpertAnalysis --> RiskItem
+    DisagreementReport --> DisagreementPoint
+    DecisionMemo --> Recommendation
+    DecisionMemo --> ExpertAnalysis
+    DecisionMemo --> RiskItem
+    SynthesizerFeedbackDecision --> DecisionMemo
+    GraphState --> ExpertAnalysis
+    GraphState --> DisagreementReport
+    GraphState --> ArbitrationResult
+    GraphState --> DecisionMemo
+    GraphState --> HumanFeedbackEntry
+```

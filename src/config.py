@@ -15,28 +15,27 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: Optional[str] = None
     
     # LangSmith Tracing
-    LANGCHAIN_TRACING_V2: str = "true"
-    LANGCHAIN_API_KEY: Optional[str] = None
-    LANGCHAIN_PROJECT: str = "debate_colosseum"
-
-    # Aliases
+    LANGSMITH_TRACING: str = "true"
+    LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
     LANGSMITH_API_KEY: Optional[str] = None
-    LANGSMITH_PROJECT: Optional[str] = None
+    LANGSMITH_PROJECT: str = "debate_colosseum"
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if self.LANGSMITH_API_KEY and not self.LANGCHAIN_API_KEY:
-            self.LANGCHAIN_API_KEY = self.LANGSMITH_API_KEY
+        # Map user's LANGSMITH_* to LangChain's expected OS env vars
+        if self.LANGSMITH_API_KEY:
             os.environ["LANGCHAIN_API_KEY"] = self.LANGSMITH_API_KEY
             
         if self.LANGSMITH_PROJECT:
-            self.LANGCHAIN_PROJECT = self.LANGSMITH_PROJECT
             os.environ["LANGCHAIN_PROJECT"] = self.LANGSMITH_PROJECT
             
-        if self.LANGCHAIN_TRACING_V2:
-            os.environ["LANGCHAIN_TRACING_V2"] = self.LANGCHAIN_TRACING_V2
+        if self.LANGSMITH_ENDPOINT:
+            os.environ["LANGCHAIN_ENDPOINT"] = self.LANGSMITH_ENDPOINT
+            
+        if self.LANGSMITH_TRACING:
+            os.environ["LANGCHAIN_TRACING_V2"] = self.LANGSMITH_TRACING
 
 settings = Settings()
 
