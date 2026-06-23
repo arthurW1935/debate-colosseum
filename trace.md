@@ -83,3 +83,14 @@ This file maintains a running log of all actions taken by the AI orchestrator an
   - Injected `disagreement_report_t1` (score, summary) into the user prompt if available.
   - Appended strict formatting instruction for `dissent_notes`.
 - **Verification:** Logic structurally verified in `base_wrapper.py`; runtime behavioral verification will happen in Checkpoint 4 (Turn 2 Tests).
+
+### Checkpoint 4: Track B Turn 2 Tests
+- **Time:** [2026-06-23T10:00:00Z]
+- **Status:** COMPLETED
+- **Files Touched:**
+  - `tests/test_agents_t2.py` (Created)
+- **Actions:**
+  - Created Turn 2 test suite for expert agents (`growth`, `finance`, `risk`).
+  - Constructed a mock `t2_state` containing `turn1_analyses` and a `disagreement_report_t1` to simulate the environment of Turn 2.
+  - Asserted that all agents successfully process the injected peer context and return valid `ExpertAnalysis` structures configured for `round="2"`.
+- **Verification:** `pytest tests/test_agents_t2.py` passed cleanly (3/3 tests passed).
