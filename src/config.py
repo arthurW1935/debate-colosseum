@@ -1,62 +1,62 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 import os
+import logging
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.chat_models import BaseChatModel
 
+logger = logging.getLogger(__name__)
+
+
 class Settings(BaseSettings):
-    LLM_PROVIDER: str = "openai" # anthropic, openai, google_vertex_ai, google_genai
-    LLM_MODEL: str = "gpt-4o-mini"
-    
+    LLM_PROVIDER: str = "anthropic"
+    LLM_MODEL: str = "claude-sonnet-4-6"
+
     # API Keys
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
     GOOGLE_CLOUD_PROJECT: Optional[str] = None
-    
+    TAVILY_API_KEY: Optional[str] = None
+
+    # External action
+    SLACK_WEBHOOK_URL: Optional[str] = None
+
     # LangSmith Tracing
     LANGSMITH_TRACING: str = "true"
     LANGSMITH_ENDPOINT: str = "https://api.smith.langchain.com"
     LANGSMITH_API_KEY: Optional[str] = None
-    LANGSMITH_PROJECT: str = "debate_colosseum"
-    
+    LANGSMITH_PROJECT: str = "debate-colosseum"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Map user's LANGSMITH_* to LangChain's expected OS env vars
+        # Map LANGSMITH_* vars to LangChain's expected OS env vars so LangGraph
+        # nodes are automatically traced without per-node setup.
         if self.LANGSMITH_API_KEY:
             os.environ["LANGCHAIN_API_KEY"] = self.LANGSMITH_API_KEY
-            
         if self.LANGSMITH_PROJECT:
             os.environ["LANGCHAIN_PROJECT"] = self.LANGSMITH_PROJECT
-            
         if self.LANGSMITH_ENDPOINT:
             os.environ["LANGCHAIN_ENDPOINT"] = self.LANGSMITH_ENDPOINT
-            
         if self.LANGSMITH_TRACING:
             os.environ["LANGCHAIN_TRACING_V2"] = self.LANGSMITH_TRACING
 
+
 settings = Settings()
 
+
 def get_chat_model(
-    provider: Optional[str] = None, 
+    provider: Optional[str] = None,
     model: Optional[str] = None,
-    temperature: float = 0.0
+    temperature: float = 0.0,
 ) -> BaseChatModel:
-    """LLM Factory using LangChain's init_chat_model.
-    
-    Supports:
-        - openai
-        - anthropic
-        - google_vertex_ai
-        - google_genai
+    """Return an LLM instance via LangChain's init_chat_model.
+
+    Supports: anthropic, openai, google_vertex_ai, google_genai.
+    Defaults come from Settings so .env drives model choice.
     """
     _provider = provider or settings.LLM_PROVIDER
     _model = model or settings.LLM_MODEL
-    
-    return init_chat_model(
-        model=_model,
-        model_provider=_provider,
-        temperature=temperature
-    )
+    return init_chat_model(model=_model, model_provider=_provider, temperature=temperature)
