@@ -2,7 +2,11 @@ from typing import Any, Sequence
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from src.schemas import ExpertAnalysis, GraphState
 from src.config import get_chat_model
+from langsmith import traceable
+from pydantic import BaseModel, Field
+from langchain_core.tools import StructuredTool
 
+@traceable(name="call_agent_with_retry")
 def call_agent_with_retry(
     state: GraphState,
     role: str,
@@ -18,8 +22,10 @@ def call_agent_with_retry(
     
     # Build initial user content
     user_content = f"Problem Statement:\n{state.problem_statement}\n"
+    
+    # DO NOT dump context_docs directly to save tokens! Force agent to use tools.
     if state.context_docs:
-        user_content += "\n[Supporting Context]\n" + "\n".join(state.context_docs)
+        user_content += "\n[Context Documents are available. You MUST use the `doc_retrieval` tool to search through them.]\n"
         
     if turn == 2:
         user_content += "\n\n[Peers' Turn 1 Analyses]\n"
@@ -37,10 +43,32 @@ def call_agent_with_retry(
     
     # 1. Allow the model to use tools if any are provided
     if tools:
-        model_with_tools = model.bind_tools(tools)
-        for i in range(5):  # Max 5 tool call turns
+        bound_tools = []
+        for t in tools:
+            t_name = getattr(t, "name", getattr(t, "__name__", ""))
+            if t_name == "doc_retrieval":
+                class DocRetrievalInput(BaseModel):
+                    query: str = Field(..., description="The query to search the documents for.")
+                
+                def doc_retrieval_wrapper(query: str):
+                    return t(query, getattr(state, "retriever", None))
+                
+                bound_tools.append(StructuredTool.from_function(
+                    func=doc_retrieval_wrapper,
+                    name="doc_retrieval",
+                    description="Retrieves top 8 candidates using cosine similarity, then reranks to top 4 using a cross-encoder.",
+                    args_schema=DocRetrievalInput
+                ))
+            else:
+                bound_tools.append(t)
+                
+        model_with_tools = model.bind_tools(bound_tools)
+        for i in range(2):  # Max 2 tool call turns
             print(f"[{role.upper()}] Turn {i+1}: Waiting for LLM response...")
-            response = model_with_tools.invoke(messages)
+            
+            invoke_llm = traceable(name=f"{role}_tool_llm_invoke_turn_{i+1}")(model_with_tools.invoke)
+            response = invoke_llm(messages)
+            
             print(f"[{role.upper()}] Turn {i+1}: LLM response received. Tool calls: {len(response.tool_calls)}")
             messages.append(response)
             
@@ -48,19 +76,16 @@ def call_agent_with_retry(
                 break
                 
             for tc in response.tool_calls:
-                tool_func = next((t for t in tools if getattr(t, "name", getattr(t, "__name__", None)) == tc["name"]), None)
+                tool_func = next((t for t in bound_tools if getattr(t, "name", getattr(t, "__name__", "")) == tc["name"]), None)
                 if tool_func:
                     try:
                         args = dict(tc["args"])
-                        # Inject retriever for doc_retrieval if needed
-                        if getattr(tool_func, "name", getattr(tool_func, "__name__", "")) == "doc_retrieval":
-                            args["retriever"] = getattr(state, "retriever", None)
-
                         if hasattr(tool_func, "invoke"):
-                            result = tool_func.invoke(args)
+                            invoke_tool = traceable(name=f"{role}_exec_tool_{tc['name']}")(tool_func.invoke)
+                            result = invoke_tool(args)
                         else:
-                            result = tool_func(**args)
-                            
+                            invoke_tool = traceable(name=f"{role}_exec_tool_{tc['name']}")(tool_func)
+                            result = invoke_tool(**args)
                         messages.append(ToolMessage(tool_call_id=tc["id"], content=str(result), name=tc["name"]))
                     except Exception as e:
                         messages.append(ToolMessage(tool_call_id=tc["id"], content=f"Tool error: {e}", name=tc["name"]))
@@ -72,10 +97,12 @@ def call_agent_with_retry(
 
     # 2. Extract structured output with retry logic
     structured_model = model.with_structured_output(ExpertAnalysis)
+    invoke_structured = traceable(name=f"{role}_structured_output_invoke")(structured_model.invoke)
     
     try:
-        return structured_model.invoke(messages)
+        return invoke_structured(messages)
     except Exception as e:
         # Retry exactly once
         messages.append(HumanMessage(content=f"Your previous output failed schema validation: {e}. Please correct it and strictly adhere to the schema."))
-        return structured_model.invoke(messages)
+        invoke_structured_retry = traceable(name=f"{role}_structured_output_retry")(structured_model.invoke)
+        return invoke_structured_retry(messages)

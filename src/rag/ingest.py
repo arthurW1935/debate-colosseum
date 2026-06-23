@@ -105,15 +105,21 @@ def ingest_context(state: GraphState) -> GraphState:
         return new_state
 
     all_chunks = []
-    for doc_path in state.context_docs:
-        file_type = doc_path.split(".")[-1]
+    for doc in state.context_docs:
         try:
-            text = extract_text(doc_path, file_type)
-            all_chunks.extend(chunk_text(text, source=doc_path))
+            # If doc is a valid file path that exists, extract text from it
+            if len(doc) < 255 and os.path.exists(doc):
+                file_type = doc.split(".")[-1]
+                text = extract_text(doc, file_type)
+                source = doc
+            else:
+                # Otherwise, it's raw text (e.g. from tests)
+                text = doc
+                source = f"simulated_doc_{hash(doc)}"
+            all_chunks.extend(chunk_text(text, source=source))
         except Exception as e:
             # Re-raise the exception per instructions: tools raise, don't silently ignore
-            raise RuntimeError(f"Error ingesting document '{doc_path}': {e}") from e
+            raise RuntimeError(f"Error ingesting document '{doc[:50]}...': {e}") from e
 
-    vector_store = build_vector_store(all_chunks)
-    new_state.retriever = vector_store
+    new_state.retriever = all_chunks
     return new_state

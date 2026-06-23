@@ -15,13 +15,18 @@ def doc_retrieval(query: str, retriever) -> list[str]:
     
     If retriever is None (no docs uploaded), falls back gracefully and returns an empty list.
     """
-    # A6: Graceful no-docs fallback
-    if retriever is None:
+    if not retriever:
         return []
         
     try:
+        from src.rag.ingest import build_vector_store
+        
+        # In our updated architecture, retriever is actually a list of chunks stored in GraphState
+        # We rebuild the EphemeralClient collection on the fly to avoid checkpointer serialization issues
+        vector_store = build_vector_store(retriever)
+        
         # Cosine similarity search for top 8 candidates from Chroma vector store
-        results = retriever.query(query_texts=[query], n_results=8)
+        results = vector_store.query(query_texts=[query], n_results=8)
         
         # Check if results are valid and contain documents
         if not results or "documents" not in results or not results["documents"] or not results["documents"][0]:

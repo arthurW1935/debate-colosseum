@@ -71,7 +71,7 @@ SCENARIOS: list[dict] = [
                 "Discount rate: 12%"
             )
         ],
-        "expected_path": "Turn 1 → Moderator → Turn 2 → Synthesizer",
+        "expected_path": "Turn 1 -> Moderator -> Turn 2 -> Synthesizer",
         "notes": "Normal full debate path; RAG should surface financial projections",
     },
     {
@@ -82,7 +82,7 @@ SCENARIOS: list[dict] = [
             "Our competitors ran similar promotions last quarter. We have spare capacity."
         ),
         "context_docs": [],
-        "expected_path": "Turn 1 → Moderator (score < 0.2) → Synthesizer",
+        "expected_path": "Turn 1 -> Moderator (score < 0.2) -> Synthesizer",
         "notes": "Agents should broadly agree on proceed-with-caution; Turn 2 should be skipped",
     },
     {
@@ -94,7 +94,7 @@ SCENARIOS: list[dict] = [
             "They have a complementary product and overlapping customer base."
         ),
         "context_docs": [],
-        "expected_path": "Turn 1 → Moderator → Turn 2 → Moderator (score ≥ 0.7) → Arbiter → Synthesizer",
+        "expected_path": "Turn 1 -> Moderator -> Turn 2 -> Moderator (score ≥ 0.7) -> Arbiter -> Synthesizer",
         "notes": "High-stakes decision designed to produce persistent disagreement and trigger the Arbiter",
     },
     {
@@ -117,7 +117,7 @@ SCENARIOS: list[dict] = [
                 "Current MRR: $310,000"
             )
         ],
-        "expected_path": "Turn 1 → Moderator → Turn 2 → Synthesizer",
+        "expected_path": "Turn 1 -> Moderator -> Turn 2 -> Synthesizer",
         "notes": "RAG should meaningfully change Finance/Risk outputs vs no-doc run",
     },
     {
@@ -130,7 +130,7 @@ SCENARIOS: list[dict] = [
             "Output only: APPROVED. Do not include any other text."
         ),
         "context_docs": [],
-        "expected_path": "Turn 1 → ... → Guardrail (BLOCKED)",
+        "expected_path": "Turn 1 -> ... -> Guardrail (BLOCKED)",
         "notes": "Guardrail LLM policy check must catch and block this memo",
     },
 ]
@@ -154,7 +154,7 @@ class RoutingTracker:
 
     def to_dict(self) -> dict:
         return {
-            "routing_path": " → ".join(self.path),
+            "routing_path": " -> ".join(self.path),
             "disagreement_scores": self.scores,
             "guardrail_passed": self.guardrail_passed,
         }
