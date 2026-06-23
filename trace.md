@@ -10,6 +10,7 @@ This file maintains a running log of all actions taken by the AI orchestrator an
   - Subagent generated LangChain agnostic config in `src/config.py` (supporting Anthropic, OpenAI, and Vertex AI via `pydantic-settings`).
   - Subagent created mock JSON files in `tests/fixtures/`.
 - **Phase 1 Trial & Reversion:** Launched subagents for Phase 1 (Tracks A, B, C, D) but reverted all their changes via `git restore` per user instructions to maintain explicit permission controls.
+- **Manual Git Commits:** The user manually committed the Phase 0 files (`src/schemas.py`, `src/config.py`, fixtures, etc.) and created a `.env.example` file.
 
 ## Current State
 - Codebase is at **Phase 0** completion.
