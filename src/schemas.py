@@ -22,7 +22,7 @@ class RiskItem(BaseModel):
 
 class ExpertAnalysis(BaseModel):
     agent_role: Literal["growth", "finance", "risk"]
-    round: Literal[1, 2, "feedback"]
+    round: Literal["1", "2", "feedback"]
     recommendation: Recommendation
     confidence: float = Field(..., ge=0.0, le=1.0)
     summary: str

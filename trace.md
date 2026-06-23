@@ -17,8 +17,69 @@ This file maintains a running log of all actions taken by the AI orchestrator an
 ## Current State
 - Codebase is at **Phase 0** completion.
 - **Track B Preparation**: Fixed the LangGraph state dictionary overwrite issue by adding a custom `merge_dict` reducer and `typing.Annotated` to the `GraphState` Pydantic model in `src/schemas.py`.
-- **Track B Execution (Checkpoint 1)**: 
-  - Created `src/tools/financial_calc.py` implementing mathematical logic for ROI, NPV, IRR, and breakeven.
-  - Implemented comprehensive tests for the financial calculator in `tests/test_tools.py` (all tests passing).
-  - Built `src/agents/base_wrapper.py` exposing `call_agent_with_retry` to handle tool binding, structured output formatting, and exact 1-retry on `ValidationError`.
-- Awaiting validation and execution of Checkpoint 2.
+- **Time:** [2026-06-23T08:34:00Z] (approx)
+- **Status:** COMPLETED
+- **Files Touched:**
+  - `src/tools/financial_calc.py`
+  - `src/agents/base_wrapper.py`
+  - `tests/test_tools.py`
+- **Actions:**
+# Activity Trace Log
+
+This file maintains a running log of all actions taken by the AI orchestrator and its subagents.
+
+## Completed Actions
+- **Project Scaffold Verification:** Verified that the user successfully created the directory structures for `src`, `tests`, and `frontend`.
+- **.gitignore Update:** Created a comprehensive `.gitignore` file for Python environments, API keys, and LangSmith metadata.
+- **Phase 0 Execution (Schemas, Config, Fixtures):** 
+  - Subagent generated Pydantic v2 schemas in `src/schemas.py`.
+  - Subagent generated LangChain agnostic config in `src/config.py` (supporting Anthropic, OpenAI, and Vertex AI via `pydantic-settings`).
+  - Subagent created mock JSON files in `tests/fixtures/`.
+- **Phase 1 Trial & Reversion:** Launched subagents for Phase 1 (Tracks A, B, C, D) but reverted all their changes via `git restore` per user instructions to maintain explicit permission controls.
+- **Manual Git Commits & Fixes:** The user manually committed the Phase 0 files (`src/schemas.py`, `src/config.py`, fixtures, etc.), created `.env.example`, and later manually fixed `.env.example` to include the missing `LANGSMITH_ENDPOINT` configuration.
+- **Config & Documentation Update:** Orchestrator added `LANGSMITH_ENDPOINT` handling to `src/config.py` and appended a Mermaid UML schema diagram to the end of `PLAN.md`.
+- **Config Alignment:** Orchestrator updated `src/config.py` to natively map all `LANGSMITH_*` variables exactly as they were defined by the user in `.env.example` to the standard `LANGCHAIN_*` OS variables, and explicitly stripped out the unused `LANGCHAIN_` configuration aliases from the Pydantic schema to strictly match the `.env.example` file.
+
+## Current State
+- Codebase is at **Phase 0** completion.
+- **Track B Preparation**: Fixed the LangGraph state dictionary overwrite issue by adding a custom `merge_dict` reducer and `typing.Annotated` to the `GraphState` Pydantic model in `src/schemas.py`.
+- **Time:** [2026-06-23T08:34:00Z] (approx)
+- **Status:** COMPLETED
+- **Files Touched:**
+  - `src/tools/financial_calc.py`
+  - `src/agents/base_wrapper.py`
+  - `tests/test_tools.py`
+- **Actions:**
+  - Implemented standalone financial calculations (ROI, NPV, IRR, Breakeven).
+  - Created test suite and verified standard math outputs.
+  - Implemented `call_agent_with_retry` wrapping `with_structured_output` with robust LangSmith tracing and schema retry limits.
+- **Verification:** `pytest tests/test_tools.py` passed cleanly.
+
+### Checkpoint 2: Track B Turn 1 Agents
+- **Time:** [2026-06-23T09:12:00Z]
+- **Status:** COMPLETED
+- **Files Touched:**
+  - `src/schemas.py` (fixed enum `Literal` config for LLM generation)
+  - `tests/fixtures/mock_tools.py`
+  - `src/agents/growth.py`
+  - `src/agents/finance.py`
+  - `src/agents/risk.py`
+  - `tests/test_agents_t1.py`
+- **Actions:**
+  - Implemented expert agents (Growth, Finance, Risk) using the precise system prompts required for Turn 1.
+  - Created mock tools for testing isolated agent behavior without depending on Phase 1 setup.
+  - Fixed an unparseable schema Literal to fix Vertex AI API crash.
+  - Hardened prompts with strict tool sequencing, padded financial `cash_flows` array rules, and strictly formatted dissent notes (`[Peer Role]: [Specific disagreement]`).
+- **Verification:** `pytest tests/test_agents_t1.py` passed cleanly.
+
+### Checkpoint 3: Turn 2 Peer Context Injection
+- **Time:** [2026-06-23T09:51:00Z]
+- **Status:** COMPLETED
+- **Files Touched:**
+  - `src/agents/base_wrapper.py`
+- **Actions:**
+  - Injected conditional prompt logic for `turn == 2`.
+  - Added extraction of peers' `turn1_analyses` (recommendation, confidence, summary) and injected it into the user prompt.
+  - Injected `disagreement_report_t1` (score, summary) into the user prompt if available.
+  - Appended strict formatting instruction for `dissent_notes`.
+- **Verification:** Logic structurally verified in `base_wrapper.py`; runtime behavioral verification will happen in Checkpoint 4 (Turn 2 Tests).

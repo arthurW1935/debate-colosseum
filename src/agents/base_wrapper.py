@@ -31,7 +31,7 @@ def call_agent_with_retry(
         if state.disagreement_report_t1:
             user_content += f"\n[Moderator's Disagreement Report]\nScore: {state.disagreement_report_t1.score}\nSummary: {state.disagreement_report_t1.summary}\n"
             
-        user_content += "\nPlease populate `dissent_notes` if you disagree with any peer's assumptions."
+        user_content += "\nPlease populate `dissent_notes` using the strict format `[Peer Role]: [Specific disagreement]` if you disagree with any peer's assumptions."
 
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_content)]
     
