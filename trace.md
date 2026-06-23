@@ -13,6 +13,12 @@ This file maintains a running log of all actions taken by the AI orchestrator an
 - **Manual Git Commits & Fixes:** The user manually committed the Phase 0 files (`src/schemas.py`, `src/config.py`, fixtures, etc.), created `.env.example`, and later manually fixed `.env.example` to include the missing `LANGSMITH_ENDPOINT` configuration.
 - **Config & Documentation Update:** Orchestrator added `LANGSMITH_ENDPOINT` handling to `src/config.py` and appended a Mermaid UML schema diagram to the end of `PLAN.md`.
 - **Config Alignment:** Orchestrator updated `src/config.py` to natively map all `LANGSMITH_*` variables exactly as they were defined by the user in `.env.example` to the standard `LANGCHAIN_*` OS variables, and explicitly stripped out the unused `LANGCHAIN_` configuration aliases from the Pydantic schema to strictly match the `.env.example` file.
+- **Track A RAG & Shared Tools Implementation:**
+  - Implemented `.pdf`, `.txt`, and `.md` file text extraction, text chunking (600/80 recursive splitter), Chroma ephemeral in-memory vector store indexing using local `all-MiniLM-L6-v2` embeddings, and the `ingest_context` node function in `src/rag/ingest.py`.
+  - Implemented the `doc_retrieval` tool in `src/tools/doc_retrieval.py` with cosine top-8 similarity and local cross-encoder `ms-marco-MiniLM-L-6-v2` reranking to top 4, including graceful fallback on empty documents.
+  - Implemented the `web_search` tool in `src/tools/web_search.py` using Tavily API direct REST requests, supporting rate-limiting 429 retries and schema matching (`{title, url, snippet}`).
+  - Created unit and node tests in `tests/test_rag.py`, `tests/test_tools.py`, and `tests/test_ingest_node.py` (16 tests passed).
+  - Wrote tool integration handoff documentation in `src/tools/README.md`.
 
 ## Current State
 - Codebase is at **Phase 0** completion.
@@ -94,3 +100,6 @@ This file maintains a running log of all actions taken by the AI orchestrator an
   - Constructed a mock `t2_state` containing `turn1_analyses` and a `disagreement_report_t1` to simulate the environment of Turn 2.
   - Asserted that all agents successfully process the injected peer context and return valid `ExpertAnalysis` structures configured for `round="2"`.
 - **Verification:** `pytest tests/test_agents_t2.py` passed cleanly (3/3 tests passed).
+- Codebase is at **Track A (RAG Pipeline & Shared Tools)** completion.
+- Awaiting next track inputs or other integration tasks.
+- Phase 2 (Cross-Track Wiring) Completed. Track A dependencies fixed, agents wired to real tools, and E2E tests passing.
