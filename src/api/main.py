@@ -89,10 +89,13 @@ async def _run_graph(run_id: str, state: GraphState) -> None:
         graph = build_graph(_checkpointer)
         config = {"configurable": {"thread_id": run_id}}
 
-        result = await asyncio.to_thread(
-            graph.invoke,
-            state.model_dump(mode="json"),
-            config,
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                graph.invoke,
+                state.model_dump(mode="json"),
+                config,
+            ),
+            timeout=600,  # 10-minute hard limit — ~25 LLM calls expected
         )
 
         # Check if the graph has paused at the interrupt point.
@@ -116,6 +119,10 @@ async def _run_graph(run_id: str, state: GraphState) -> None:
         )
         record.status = "error"
         record.error = "Graph not yet implemented (see Phase 3, task I1)"
+    except asyncio.TimeoutError:
+        logger.error("Graph execution timed out after 10 minutes for run_id=%s", run_id)
+        record.status = "error"
+        record.error = "Graph execution timed out (>10 min). Check API keys and network connectivity."
     except Exception as exc:
         logger.exception("Graph execution failed for run_id=%s", run_id)
         record.status = "error"
@@ -140,10 +147,9 @@ async def _resume_graph(run_id: str) -> None:
         )
         
         # Resume graph execution
-        result = await asyncio.to_thread(
-            graph.invoke,
-            None,
-            config,
+        result = await asyncio.wait_for(
+            asyncio.to_thread(graph.invoke, None, config),
+            timeout=600,
         )
 
         state_snapshot = graph.get_state(config)
