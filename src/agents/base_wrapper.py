@@ -50,8 +50,12 @@ def call_agent_with_retry(
                 class DocRetrievalInput(BaseModel):
                     query: str = Field(..., description="The query to search the documents for.")
                 
-                def doc_retrieval_wrapper(query: str):
-                    return t(query, getattr(state, "retriever", None))
+                def doc_retrieval_wrapper(query: str, _t=t):
+                    # Use _t to avoid Python late-binding loop variable capture
+                    if hasattr(_t, "invoke"):
+                        # Just in case doc_retrieval was passed as a StructuredTool already
+                        return _t.invoke({"query": query, "retriever": getattr(state, "retriever", None)})
+                    return _t(query, getattr(state, "retriever", None))
                 
                 bound_tools.append(StructuredTool.from_function(
                     func=doc_retrieval_wrapper,
@@ -70,27 +74,49 @@ def call_agent_with_retry(
             response = invoke_llm(messages)
             
             print(f"[{role.upper()}] Turn {i+1}: LLM response received. Tool calls: {len(response.tool_calls)}")
+            
+            # Strip massive Gemini thought blocks to prevent token bloat in subsequent turns
+            if hasattr(response, "additional_kwargs"):
+                keys_to_remove = [k for k in response.additional_kwargs if k.startswith("__gemini")]
+                for k in keys_to_remove:
+                    response.additional_kwargs.pop(k, None)
+                    
             messages.append(response)
             
-            if not response.tool_calls:
+            # Check if the model decided to call tools
+            if hasattr(response, "tool_calls") and response.tool_calls:
+                for tc in response.tool_calls:
+                    # Find the tool
+                    tool_func = None
+                    for t in bound_tools:
+                        if getattr(t, "name", getattr(t, "__name__", "")) == tc["name"]:
+                            tool_func = t
+                            break
+                            
+                    if tool_func:
+                        try:
+                            args = dict(tc["args"])
+                            if hasattr(tool_func, "invoke"):
+                                invoke_tool = traceable(name=f"{role}_exec_tool_{tc['name']}")(tool_func.invoke)
+                                result = invoke_tool(args)
+                            else:
+                                invoke_tool = traceable(name=f"{role}_exec_tool_{tc['name']}")(tool_func)
+                                result = invoke_tool(**args)
+                            tool_content = str(result)
+                            if not tool_content.strip():
+                                tool_content = "No output"
+                            messages.append(ToolMessage(tool_call_id=tc["id"], content=tool_content, name=tc["name"]))
+                        except Exception as e:
+                            messages.append(ToolMessage(tool_call_id=tc["id"], content=f"Tool error: {e}", name=tc["name"]))
+                    else:
+                        messages.append(ToolMessage(tool_call_id=tc["id"], content="Tool not found.", name=tc["name"]))
+            else:
+                # Model didn't use tools, break the loop
+                if not response.content:
+                    # Prevent Vertex AI crash: "must include at least one parts field"
+                    # If content is empty (e.g. after stripping thought blocks), give it dummy text.
+                    response.content = "Analysis complete."
                 break
-                
-            for tc in response.tool_calls:
-                tool_func = next((t for t in bound_tools if getattr(t, "name", getattr(t, "__name__", "")) == tc["name"]), None)
-                if tool_func:
-                    try:
-                        args = dict(tc["args"])
-                        if hasattr(tool_func, "invoke"):
-                            invoke_tool = traceable(name=f"{role}_exec_tool_{tc['name']}")(tool_func.invoke)
-                            result = invoke_tool(args)
-                        else:
-                            invoke_tool = traceable(name=f"{role}_exec_tool_{tc['name']}")(tool_func)
-                            result = invoke_tool(**args)
-                        messages.append(ToolMessage(tool_call_id=tc["id"], content=str(result), name=tc["name"]))
-                    except Exception as e:
-                        messages.append(ToolMessage(tool_call_id=tc["id"], content=f"Tool error: {e}", name=tc["name"]))
-                else:
-                    messages.append(ToolMessage(tool_call_id=tc["id"], content="Tool not found.", name=tc["name"]))
                     
         # Instruct model to output the final analysis
         messages.append(HumanMessage(content="Now, please provide your final analysis strictly adhering to the required schema."))
@@ -100,9 +126,30 @@ def call_agent_with_retry(
     invoke_structured = traceable(name=f"{role}_structured_output_invoke")(structured_model.invoke)
     
     try:
-        return invoke_structured(messages)
+        result = invoke_structured(messages)
+        if result is None:
+            raise ValueError("Model failed to invoke the structured output function call.")
+        return result
     except Exception as e:
         # Retry exactly once
-        messages.append(HumanMessage(content=f"Your previous output failed schema validation: {e}. Please correct it and strictly adhere to the schema."))
+        messages.append(HumanMessage(content=f"Your previous output failed schema validation or was missing the required tool call: {e}. Please strictly adhere to the JSON schema format by using the required tool call."))
         invoke_structured_retry = traceable(name=f"{role}_structured_output_retry")(structured_model.invoke)
-        return invoke_structured_retry(messages)
+        try:
+            result = invoke_structured_retry(messages)
+            if result is None:
+                raise ValueError("Model failed to invoke the structured output function call on retry.")
+            return result
+        except Exception as retry_e:
+            from src.schemas import Recommendation
+            # Provide a safe fallback to prevent the entire graph from crashing
+            return ExpertAnalysis(
+                agent_role=role,
+                round=str(turn) if turn in [1, 2] else "feedback",
+                recommendation=Recommendation.PROCEED_WITH_CAUTION,
+                confidence=0.5,
+                summary=f"Fallback triggered: Model failed to format output correctly. Error: {retry_e}",
+                key_assumptions=["Model formatting failure"],
+                supporting_evidence=[],
+                risks=[],
+                dissent_notes="Failed to extract structural output from the LLM."
+            )

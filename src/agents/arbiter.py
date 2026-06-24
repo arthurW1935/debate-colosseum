@@ -22,17 +22,18 @@ Do not re-analyze the entire problem statement or introduce completely new topic
 
 def arbiter(state: GraphState) -> GraphState:
     """Arbiter agent node.
-    Rules on specific disputed points and returns an ArbitrationResult."""
-    # Find the latest disagreement report
+    Rules on specific disputed points and returns an ArbitrationResult.
+    Always runs an LLM call when invoked — the routing decision already
+    guarantees that disagreement is high enough to warrant arbitration."""
     report = state.disagreement_report_t2 or state.disagreement_report_t1
-    if not report or not report.flagged_points:
-        # Graceful fallback: nothing to arbitrate
+    analyses = state.turn2_analyses if state.turn2_analyses else state.turn1_analyses
+
+    if not analyses or len(analyses) < 2:
+        # Genuinely nothing to arbitrate (no expert data)
         return state.model_copy(update={
             "arbitration_result": ArbitrationResult(rulings=[], unresolved_points=[])
         })
-        
-    analyses = state.turn2_analyses if state.turn2_analyses else state.turn1_analyses
-    
+
     # Format the agent analyses for the arbiter
     analyses_str = ""
     for role, analysis in analyses.items():
@@ -42,22 +43,31 @@ def arbiter(state: GraphState) -> GraphState:
         analyses_str += f"Summary: {analysis.summary}\n"
         analyses_str += f"Key Assumptions: {', '.join(analysis.key_assumptions)}\n"
         analyses_str += f"Supporting Evidence: {', '.join(analysis.supporting_evidence)}\n\n"
-        
-    # Format the disagreement report for the arbiter
-    disagreements_str = "Flagged Disagreements:\n"
-    for pt in report.flagged_points:
-        disagreements_str += f"- Topic: {pt.topic}\n"
-        for role, pos in pt.positions.items():
-            disagreements_str += f"  * {role}: {pos}\n"
-            
+
+    # Format disagreement info — use moderator's flagged points if available,
+    # otherwise instruct the LLM to identify disagreements from the raw analyses.
+    if report and report.flagged_points:
+        disagreements_str = "Flagged Disagreements:\n"
+        for pt in report.flagged_points:
+            disagreements_str += f"- Topic: {pt.topic}\n"
+            for role, pos in pt.positions.items():
+                disagreements_str += f"  * {role}: {pos}\n"
+    else:
+        disagreements_str = (
+            "The Moderator did not flag specific disagreement points, but the "
+            "quantitative disagreement score is high enough to warrant arbitration. "
+            "Identify the key points of disagreement from the expert analyses above "
+            "and rule on each one."
+        )
+
     messages = [
         {"role": "system", "content": ARBITER_SYSTEM_PROMPT},
         {"role": "user", "content": f"Problem Statement: {state.problem_statement}\n\nExpert Analyses:\n{analyses_str}\n\n{disagreements_str}"}
     ]
-    
+
     model = get_chat_model(temperature=0.0)
     structured_model = model.with_structured_output(ArbitrationResult)
-    
+
     try:
         result = structured_model.invoke(messages)
     except Exception as e:
@@ -66,7 +76,7 @@ def arbiter(state: GraphState) -> GraphState:
             result = structured_model.invoke(messages)
         except Exception as e2:
             raise ValueError(f"Arbiter LLM call failed validation after retry: {e2}") from e2
-            
+
     new_state = state.model_copy(update={
         "arbitration_result": result
     })

@@ -11,7 +11,7 @@ Guidelines:
 3. Expert Positions: Map each agent role to its final ExpertAnalysis object in the `expert_positions` dictionary.
 4. Key Agreements: List specific points where the expert agents agreed.
 5. Key Disagreements: List specific points where they disagreed. Note that any dissent that was not resolved by the Arbiter must be explicitly preserved here.
-6. Arbitration Summary: Summarize the Arbiter's rulings and what was resolved, or leave it null/empty if the Arbiter did not run.
+6. Arbitration Summary: If the Arbiter ran and produced rulings, summarize them here. If the Arbitration Result section says the Arbiter did not run or is empty, you MUST set `arbitration_summary` to null. Do NOT fabricate or assume arbitration outcomes.
 7. Risk Register: Collect and consolidate all risks identified by the experts into a single list of `RiskItem`s. Avoid duplicates, and keep mitigations if provided.
 8. Next Steps: Suggest concrete, actionable next steps based on the recommendation and risks.
 9. Generated At: Use the current ISO timestamp or leave it blank for the system to populate.
@@ -110,8 +110,11 @@ def synthesizer(state: GraphState) -> GraphState:
         disagreement_report = state.disagreement_report_t1.model_dump_json(indent=2)
         
     arbitration_result = ""
-    if state.arbitration_result:
+    if (state.arbitration_result
+            and (state.arbitration_result.rulings or state.arbitration_result.unresolved_points)):
         arbitration_result = state.arbitration_result.model_dump_json(indent=2)
+    else:
+        arbitration_result = "The Arbiter did not run. Do not reference or fabricate any arbitration results."
         
     # Check if we are handling a new feedback note from human
     if state.current_feedback_text:

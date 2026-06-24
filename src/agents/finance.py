@@ -41,6 +41,8 @@ def expert_finance(state: GraphState) -> Dict[str, Any]:
         tools=tools,
         turn=state.current_turn
     )
+    
+    assert analysis is not None, "call_agent_with_retry returned None in expert_finance!"
 
     if state.action_status and state.action_status.startswith("revision_required:"):
         return {"feedback_analyses": {"finance": analysis}}
