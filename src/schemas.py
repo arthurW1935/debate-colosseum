@@ -22,7 +22,7 @@ class RiskItem(BaseModel):
 
 class ExpertAnalysis(BaseModel):
     agent_role: Literal["growth", "finance", "risk"]
-    round: Literal[1, 2, "feedback"]
+    round: Literal["1", "2", "feedback"]
     recommendation: Recommendation
     confidence: float = Field(..., ge=0.0, le=1.0)
     summary: str
@@ -32,9 +32,13 @@ class ExpertAnalysis(BaseModel):
     dissent_notes: Optional[str] = None
     feedback_context: Optional[str] = None
 
+class AgentPosition(BaseModel):
+    agent_role: Literal["growth", "finance", "risk"]
+    stance: str
+
 class DisagreementPoint(BaseModel):
     topic: str
-    positions: dict[str, str]
+    positions: list[AgentPosition]
 
 class DisagreementReport(BaseModel):
     score: float = Field(..., ge=0.0, le=1.0)
@@ -42,15 +46,20 @@ class DisagreementReport(BaseModel):
     summary: str
     route_decision: Literal["skip_to_synthesis", "proceed_to_turn2", "proceed_to_arbiter"]
 
+class ArbitrationRuling(BaseModel):
+    topic: str
+    sided_with: str
+    reasoning: str
+
 class ArbitrationResult(BaseModel):
-    rulings: list[dict]
+    rulings: list[ArbitrationRuling]
     unresolved_points: list[str]
 
 class DecisionMemo(BaseModel):
     executive_summary: str
     recommendation: Recommendation
     confidence: float
-    expert_positions: dict[str, ExpertAnalysis]
+    expert_positions: list[ExpertAnalysis]
     key_agreements: list[str]
     key_disagreements: list[str]
     arbitration_summary: Optional[str] = None
@@ -58,6 +67,12 @@ class DecisionMemo(BaseModel):
     next_steps: list[str]
     generated_at: str
     feedback_revision_count: int = 0
+
+class ModeratorGatekeeperDecision(BaseModel):
+    """Moderator Gatekeeper's routing decision on a feedback round."""
+    requires_specialist_debate: bool
+    explicit_edit_instructions: Optional[str] = None
+    reasoning: str
 
 class SynthesizerFeedbackDecision(BaseModel):
     """Synthesizer's routing decision on a feedback round."""
@@ -87,6 +102,7 @@ class GraphState(BaseModel):
     guardrail_passed: bool = False
     human_decision: Optional[Literal["approved", "feedback", "abandoned"]] = None
     current_feedback_text: Optional[str] = None
+    synthesizer_instructions: Optional[str] = None
     human_feedback_history: Annotated[list[HumanFeedbackEntry], operator.add] = []
     action_status: Optional[str] = None
     current_turn: int = 1
