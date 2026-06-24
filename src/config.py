@@ -64,4 +64,4 @@ def get_chat_model(
     """
     _provider = provider or settings.LLM_PROVIDER
     _model = model or settings.LLM_MODEL
-    return init_chat_model(model=_model, model_provider=_provider, temperature=temperature)
+    return init_chat_model(model=_model, model_provider=_provider, temperature=temperature, timeout=90)
