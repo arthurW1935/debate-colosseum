@@ -95,16 +95,17 @@ async def _run_graph(run_id: str, state: GraphState) -> None:
             config,
         )
 
-        # LangGraph signals an interrupt by including "__interrupt__" in the
-        # returned dict.  When present the graph has paused at human_review.
-        if isinstance(result, dict) and "__interrupt__" in result:
+        # Check if the graph has paused at the interrupt point.
+        state_snapshot = graph.get_state(config)
+        
+        if isinstance(result, dict):
             state_fields = {k: v for k, v in result.items() if not k.startswith("__")}
             record.state = GraphState.model_validate(state_fields)
+
+        if "human_review" in state_snapshot.next:
             record.status = "awaiting_review"
             logger.info("Run %s paused at human_review interrupt", run_id)
         else:
-            if isinstance(result, dict):
-                record.state = GraphState.model_validate(result)
             record.status = "completed"
             logger.info("Run %s completed", run_id)
 
@@ -131,22 +132,30 @@ async def _resume_graph(run_id: str) -> None:
         graph = build_graph(_checkpointer)
         config = {"configurable": {"thread_id": run_id}}
 
-        # Resume with the updated state already written to the checkpointer by
-        # handle_review(); Command(resume=...) is the standard LangGraph pattern.
+        # Write the updated state to the checkpointer explicitly
+        await asyncio.to_thread(
+            graph.update_state,
+            config,
+            record.state.model_dump(mode="json"),
+        )
+        
+        # Resume graph execution
         result = await asyncio.to_thread(
             graph.invoke,
-            Command(resume=record.state.model_dump(mode="json")),
+            None,
             config,
         )
 
-        if isinstance(result, dict) and "__interrupt__" in result:
+        state_snapshot = graph.get_state(config)
+        
+        if isinstance(result, dict):
             state_fields = {k: v for k, v in result.items() if not k.startswith("__")}
             record.state = GraphState.model_validate(state_fields)
+
+        if "human_review" in state_snapshot.next:
             record.status = "awaiting_review"
             logger.info("Run %s re-paused at human_review after feedback", run_id)
         else:
-            if isinstance(result, dict):
-                record.state = GraphState.model_validate(result)
             record.status = "completed"
             logger.info("Run %s completed after feedback loop", run_id)
 

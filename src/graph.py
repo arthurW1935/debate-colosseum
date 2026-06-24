@@ -5,7 +5,7 @@ from src.rag.ingest import ingest_context
 from src.agents.growth import expert_growth
 from src.agents.finance import expert_finance
 from src.agents.risk import expert_risk
-from src.agents.moderator import moderator_t1, moderator_t2
+from src.agents.moderator import moderator_t1, moderator_t2, moderator_gatekeeper
 from src.agents.arbiter import arbiter
 from src.agents.synthesiser import synthesizer
 from src.guardrails.checks import guardrail_check
@@ -52,6 +52,7 @@ def build_graph(checkpointer=None):
     # Guardrails and HITL
     workflow.add_node("guardrail_check", guardrail_check)
     workflow.add_node("human_review", human_review)
+    workflow.add_node("moderator_gatekeeper", moderator_gatekeeper)
 
     # --------------------------------------------------------------------------
     # Checkpoint 3: Edges and Conditional Routing
@@ -115,14 +116,22 @@ def build_graph(checkpointer=None):
     # 10. guardrail_check -> human_review
     workflow.add_edge("guardrail_check", "human_review")
     
-    # 11. human_review conditional routing to END or synthesizer
+    # 11. human_review conditional routing to END or moderator_gatekeeper
     def route_after_human_review(state: GraphState):
         if state.human_decision == "approved" or state.human_decision == "abandoned":
             return END
         # state.human_decision == "feedback"
-        return "synthesizer"
+        return "moderator_gatekeeper"
         
     workflow.add_conditional_edges("human_review", route_after_human_review)
+
+    # 12. moderator_gatekeeper conditional routing
+    def route_after_gatekeeper(state: GraphState):
+        if state.action_status == "revision_required:all":
+            return ["expert_growth_fb", "expert_finance_fb", "expert_risk_fb"]
+        return "synthesizer"
+
+    workflow.add_conditional_edges("moderator_gatekeeper", route_after_gatekeeper)
     
     # Compile with human_review as an interrupt point for HITL
     return workflow.compile(

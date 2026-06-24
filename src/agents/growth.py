@@ -43,7 +43,7 @@ def expert_growth(state: GraphState) -> Dict[str, Any]:
     )
 
     if state.action_status and state.action_status.startswith("revision_required:"):
-        return {"feedback_analyses": {"growth": analysis}, "current_feedback_text": None}
+        return {"feedback_analyses": {"growth": analysis}}
     elif state.current_turn == 1:
         return {"turn1_analyses": {"growth": analysis}}
     else:

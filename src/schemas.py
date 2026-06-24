@@ -68,6 +68,12 @@ class DecisionMemo(BaseModel):
     generated_at: str
     feedback_revision_count: int = 0
 
+class ModeratorGatekeeperDecision(BaseModel):
+    """Moderator Gatekeeper's routing decision on a feedback round."""
+    requires_specialist_debate: bool
+    explicit_edit_instructions: Optional[str] = None
+    reasoning: str
+
 class SynthesizerFeedbackDecision(BaseModel):
     """Synthesizer's routing decision on a feedback round."""
     requires_agent_revision: bool
@@ -96,6 +102,7 @@ class GraphState(BaseModel):
     guardrail_passed: bool = False
     human_decision: Optional[Literal["approved", "feedback", "abandoned"]] = None
     current_feedback_text: Optional[str] = None
+    synthesizer_instructions: Optional[str] = None
     human_feedback_history: Annotated[list[HumanFeedbackEntry], operator.add] = []
     action_status: Optional[str] = None
     current_turn: int = 1

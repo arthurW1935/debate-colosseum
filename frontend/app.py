@@ -162,12 +162,12 @@ def render_risk_register(risks: list[dict]) -> None:
         cols[3].write(r.get("mitigation") or "—")
 
 
-def render_expert_positions(positions: dict) -> None:
+def render_expert_positions(positions: list) -> None:
     if not positions:
         return
     st.markdown("**Expert Positions**")
-    tabs = st.tabs([role.capitalize() for role in positions])
-    for tab, (role, analysis) in zip(tabs, positions.items()):
+    tabs = st.tabs([p.get("agent_role", "expert").capitalize() for p in positions])
+    for tab, analysis in zip(tabs, positions):
         with tab:
             rec = analysis.get("recommendation", "—")
             conf = analysis.get("confidence", 0)
@@ -224,7 +224,7 @@ def render_memo(memo: dict) -> None:
         st.write(f"{i}. {step}")
 
     render_risk_register(memo.get("risk_register", []))
-    render_expert_positions(memo.get("expert_positions", {}))
+    render_expert_positions(memo.get("expert_positions", []))
 
     generated = memo.get("generated_at", "")
     if generated:

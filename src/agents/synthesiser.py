@@ -18,25 +18,15 @@ Guidelines:
 
 Ensure you preserve dissent where appropriate and do not flatten differences in opinion unless resolved by the Arbiter."""
 
-SYNTHESIZER_FEEDBACK_CHECK_PROMPT = """You are a strategy consultant reviewing a decision memo alongside new feedback from a human reviewer.
-Your task is to determine whether this feedback can be resolved solely by revising the memo (e.g. framing, tone, summary changes, or incorporating details that are already present in the existing expert analyses) OR if it requires a specific expert agent to re-run and revise their analysis (e.g. they need to look up new external data, redo a calculation, or reconsider a core assumption).
 
-You will be given:
-1. The current `DecisionMemo` (including all expert positions).
-2. The new human feedback text.
-
-You must output a `SynthesizerFeedbackDecision` object:
-1. `requires_agent_revision`: Set to `True` if you need a specific expert agent (growth, finance, or risk) to revise/re-run their analysis. Set to `False` if the feedback can be resolved by updating the memo directly using existing information.
-2. `target_agent`: If `requires_agent_revision` is `True`, name the target agent role ("growth", "finance", "risk"). Otherwise, set to null.
-3. `revised_memo`: If `requires_agent_revision` is `False`, you must output the fully revised `DecisionMemo` incorporating the human feedback. Otherwise, set to null.
-4. `reasoning`: A brief explanation of your decision (e.g. why an agent revision is needed, or how the feedback was resolved in the memo)."""
 
 def get_synthesized_memo(
     problem_statement: str, 
     analyses: dict[str, ExpertAnalysis], 
     disagreement_report: str, 
     arbitration_result: str,
-    feedback_revision_count: int
+    feedback_revision_count: int,
+    explicit_instructions: str = None
 ) -> DecisionMemo:
     model = get_chat_model(temperature=0.0)
     structured_model = model.with_structured_output(DecisionMemo)
@@ -57,6 +47,10 @@ def get_synthesized_memo(
         f"Latest Disagreement Report:\n{disagreement_report}\n\n"
         f"Arbitration Result:\n{arbitration_result}\n"
     )
+    
+    if explicit_instructions:
+        user_content += f"\n[EXPLICIT EDIT INSTRUCTIONS FROM MODERATOR]\n{explicit_instructions}\n"
+        user_content += "\nYou MUST apply these edit instructions to the current memo and return the fully revised memo.\n"
     
     messages = [
         {"role": "system", "content": SYNTHESIZER_SYSTEM_PROMPT},
@@ -105,40 +99,8 @@ def get_synthesized_memo(
         
     return memo
 
-def run_feedback_check(current_memo: DecisionMemo, feedback_text: str) -> SynthesizerFeedbackDecision:
-    model = get_chat_model(temperature=0.0)
-    structured_model = model.with_structured_output(SynthesizerFeedbackDecision)
-    
-    messages = [
-        {"role": "system", "content": SYNTHESIZER_FEEDBACK_CHECK_PROMPT},
-        {"role": "user", "content": f"Current Memo:\n{current_memo.model_dump_json(indent=2)}\n\nHuman Feedback: {feedback_text}"}
-    ]
-    
-    try:
-        decision = structured_model.invoke(messages)
-    except Exception as e:
-        decision = None
-
-    if decision is None:
-        try:
-            decision = structured_model.invoke(messages)
-        except Exception as e2:
-            decision = None
-
-    if decision is None:
-        decision = SynthesizerFeedbackDecision(
-            requires_agent_revision=False,
-            target_agent=None,
-            revised_memo=current_memo,
-            reasoning="Fallback decision generated due to LLM structured parsing failure."
-        )
-            
-    return decision
-
 def synthesizer(state: GraphState) -> dict:
-    """Synthesizer node.
-    Synthesizes the final memo, or handles human feedback rounds."""
-    # Assemble the final set of analyses (override turn 2 analyses with feedback analyses)
+    """Synthesizer node."""
     base_analyses = state.turn2_analyses if state.turn2_analyses else state.turn1_analyses
     analyses = {**base_analyses, **state.feedback_analyses}
     
@@ -154,79 +116,30 @@ def synthesizer(state: GraphState) -> dict:
         arbitration_result = state.arbitration_result.model_dump_json(indent=2)
     else:
         arbitration_result = "The Arbiter did not run. Do not reference or fabricate any arbitration results."
-        
-    # Check if we are handling a new feedback note from human
-    if state.current_feedback_text:
-        current_memo = state.final_memo
-        if not current_memo:
-            # Fallback if final_memo is missing (should not happen in normal flows)
-            current_memo = get_synthesized_memo(
-                state.problem_statement, 
-                analyses, 
-                disagreement_report, 
-                arbitration_result,
-                state.feedback_round
-            )
-            
-        decision = run_feedback_check(current_memo, state.current_feedback_text)
-        
-        if decision.requires_agent_revision:
-            # Requires targeted agent re-run
-            target_agent = decision.target_agent
-            if target_agent not in ["growth", "finance", "risk"]:
-                # Default to finance if target agent is invalid/missing
-                target_agent = "finance"
-                
-            feedback_entry = HumanFeedbackEntry(
-                feedback_text=state.current_feedback_text,
-                feedback_round=state.feedback_round,
-                resolved_by="targeted_agent",
-                target_agent_if_any=target_agent,
-                contradiction_detected=False
-            )
-            
-            # Do NOT clear current_feedback_text here — the feedback agent needs it.
-            # The feedback agent will clear it after consuming the feedback.
-            return {
-                "human_feedback_history": [feedback_entry],
-                "action_status": f"revision_required:{target_agent}",
-            }
-        else:
-            # Resolved directly by the Synthesizer
-            revised_memo = decision.revised_memo
-            if not revised_memo:
-                # Fallback if LLM failed to provide the revised memo
-                revised_memo = current_memo
-                
-            revised_memo.generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            revised_memo.feedback_revision_count = current_memo.feedback_revision_count + 1
-            revised_memo.expert_positions = list(analyses.values())
-            
-            feedback_entry = HumanFeedbackEntry(
-                feedback_text=state.current_feedback_text,
-                feedback_round=state.feedback_round,
-                resolved_by="synthesizer_only",
-                target_agent_if_any=None,
-                contradiction_detected=False
-            )
-            
-            return {
-                "final_memo": revised_memo,
-                "human_feedback_history": [feedback_entry],
-                "action_status": "resolved_by_synthesizer",
-                "current_feedback_text": None
-            }
-            
-    # Non-feedback round or post-agent-revision round (where current_feedback_text is already processed/cleared)
+
     memo = get_synthesized_memo(
         state.problem_statement, 
         analyses, 
         disagreement_report, 
         arbitration_result,
-        state.feedback_round
+        state.feedback_round,
+        state.synthesizer_instructions
     )
     
-    return {
-        "final_memo": memo
-    }
+    result = {"final_memo": memo}
+    
+    if state.current_feedback_text:
+        feedback_entry = HumanFeedbackEntry(
+            feedback_text=state.current_feedback_text,
+            feedback_round=state.feedback_round,
+            resolved_by="synthesizer_only" if state.synthesizer_instructions else "targeted_agent",
+            target_agent_if_any=None,
+            contradiction_detected=False
+        )
+        result["human_feedback_history"] = [feedback_entry]
+        result["current_feedback_text"] = None
+        result["action_status"] = "resolved_by_synthesizer"
+        result["synthesizer_instructions"] = None
+        
+    return result
 

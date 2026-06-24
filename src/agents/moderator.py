@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from src.schemas import GraphState, DisagreementReport, DisagreementPoint, ExpertAnalysis, Recommendation
+from src.schemas import GraphState, DisagreementReport, DisagreementPoint, ExpertAnalysis, Recommendation, DecisionMemo, HumanFeedbackEntry, ModeratorGatekeeperDecision
 from src.config import get_chat_model
 
 class ModeratorLLMOutput(BaseModel):
@@ -138,4 +138,70 @@ def moderator_t2(state: GraphState) -> dict:
     return {
         "disagreement_report_t2": report
     }
+
+MODERATOR_GATEKEEPER_PROMPT = """You are the Moderator Gatekeeper in the Debate Colosseum.
+The human user has submitted a new piece of feedback or constraint (HITL Query).
+Your task is to evaluate whether this new constraint/information invalidates or significantly alters any arguments, risk assessments, or final decisions made in the current memo.
+
+If the change is a major shift (e.g., funding drops from $30M to $7M, acquiring a different company, changing a core assumption), it requires a full specialist debate. Set `requires_specialist_debate` to True.
+If the change is minor, factual, or formatting (e.g., fixing a typo, updating a section title, minor numerical tweak that doesn't break logic), set `requires_specialist_debate` to False and provide `explicit_edit_instructions` for the Synthesizer (e.g., "Update the funding amount to $7M in the Financials section").
+
+You will be given:
+1. The full Human Feedback History.
+2. The Current Final Decision Memo.
+3. The New Human Feedback (HITL Query).
+
+You must output a `ModeratorGatekeeperDecision` object."""
+
+def get_gatekeeper_decision(memo: DecisionMemo, history: list[HumanFeedbackEntry], new_feedback: str) -> ModeratorGatekeeperDecision:
+    model = get_chat_model(temperature=0.0)
+    structured_model = model.with_structured_output(ModeratorGatekeeperDecision)
+    
+    history_str = "\n".join([f"Round {h.feedback_round}: {h.feedback_text} (Resolved by: {h.resolved_by})" for h in history])
+    
+    user_content = (
+        f"Human Feedback History:\n{history_str}\n\n"
+        f"Current Final Decision Memo:\n{memo.model_dump_json(indent=2)}\n\n"
+        f"New Human Feedback:\n{new_feedback}\n"
+    )
+    
+    messages = [
+        {"role": "system", "content": MODERATOR_GATEKEEPER_PROMPT},
+        {"role": "user", "content": user_content}
+    ]
+    
+    try:
+        return structured_model.invoke(messages)
+    except Exception as e:
+        try:
+            return structured_model.invoke(messages)
+        except Exception as e2:
+            return ModeratorGatekeeperDecision(
+                requires_specialist_debate=True, # Fail safe
+                reasoning=f"LLM parsing failed: {e2}"
+            )
+
+def moderator_gatekeeper(state: GraphState) -> dict:
+    """Moderator Gatekeeper node for routing HITL feedback."""
+    if not state.current_feedback_text:
+        return {}
+        
+    current_memo = state.final_memo
+    if not current_memo:
+        # Should not happen, but safe fallback
+        return {
+            "action_status": "revision_required:all"
+        }
+        
+    decision = get_gatekeeper_decision(current_memo, state.human_feedback_history, state.current_feedback_text)
+    
+    if decision.requires_specialist_debate:
+        return {
+            "action_status": "revision_required:all"
+        }
+    else:
+        return {
+            "action_status": "resolved_by_synthesizer",
+            "synthesizer_instructions": decision.explicit_edit_instructions
+        }
 
