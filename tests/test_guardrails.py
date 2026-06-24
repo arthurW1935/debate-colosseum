@@ -7,7 +7,7 @@ def create_valid_memo() -> DecisionMemo:
         executive_summary="This is a very long executive summary that exceeds the fifty characters minimum requirement.",
         recommendation=Recommendation.PROCEED,
         confidence=0.8,
-        expert_positions={},
+        expert_positions=[],
         key_agreements=["Agreement A"],
         key_disagreements=[],
         risk_register=[

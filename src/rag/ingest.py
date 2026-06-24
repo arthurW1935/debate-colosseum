@@ -92,17 +92,13 @@ def build_vector_store(chunks: list[dict]):
         )
     return collection
 
-def ingest_context(state: GraphState) -> GraphState:
+def ingest_context(state: GraphState) -> dict:
     """LangGraph node function to extract and index context documents.
     
-    Updates GraphState by populating the 'retriever' attribute.
+    Returns a partial dict to avoid doubling accumulator fields (e.g. context_docs).
     """
-    # Verify INSTRUCTIONS.md: don't mutate state in-place, use state.model_copy()
-    new_state = state.model_copy()
-    
     if not state.context_docs:
-        new_state.retriever = None
-        return new_state
+        return {"retriever": None}
 
     all_chunks = []
     for doc in state.context_docs:
@@ -121,5 +117,4 @@ def ingest_context(state: GraphState) -> GraphState:
             # Re-raise the exception per instructions: tools raise, don't silently ignore
             raise RuntimeError(f"Error ingesting document '{doc[:50]}...': {e}") from e
 
-    new_state.retriever = all_chunks
-    return new_state
+    return {"retriever": all_chunks}

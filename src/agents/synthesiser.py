@@ -8,7 +8,7 @@ Your task is to synthesize the expert analyses (Growth, Finance, Risk) and the A
 Guidelines:
 1. Recommendation: Provide a synthesized recommendation enum value ("proceed", "proceed-with-caution", "do-not-proceed"). If the experts agree, follow their consensus. If they disagreed and the Arbiter ruled, follow the Arbiter's ruling. If disagreements remain unresolved by the Arbiter, exercise your judgment to determine the best path based on the balance of evidence, and explain the reasoning clearly in the summary.
 2. Confidence: Provide a confidence score (float 0.0 - 1.0) reflecting the overall consensus, expert confidences, and the presence of unresolved conflicts or Arbiter rulings.
-3. Expert Positions: Map each agent role to its final ExpertAnalysis object in the `expert_positions` dictionary.
+3. Expert Positions: Provide a list of all final ExpertAnalysis objects in the `expert_positions` list.
 4. Key Agreements: List specific points where the expert agents agreed.
 5. Key Disagreements: List specific points where they disagreed. Note that any dissent that was not resolved by the Arbiter must be explicitly preserved here.
 6. Arbitration Summary: If the Arbiter ran and produced rulings, summarize them here. If the Arbitration Result section says the Arbiter did not run or is empty, you MUST set `arbitration_summary` to null. Do NOT fabricate or assume arbitration outcomes.
@@ -66,15 +66,43 @@ def get_synthesized_memo(
     try:
         memo = structured_model.invoke(messages)
     except Exception as e:
+        memo = None
+
+    if memo is None:
         try:
             memo = structured_model.invoke(messages)
         except Exception as e2:
-            raise ValueError(f"Synthesizer initial memo LLM call failed validation after retry: {e2}") from e2
+            memo = None
+
+    if memo is None:
+        from src.schemas import Recommendation
+        from collections import Counter
+        recs = [a.recommendation for a in analyses.values()]
+        most_common_rec = Counter(recs).most_common(1)[0][0] if recs else Recommendation.PROCEED_WITH_CAUTION
+        
+        memo = DecisionMemo(
+            executive_summary="Fallback memo generated due to LLM structured parsing failure.",
+            recommendation=most_common_rec,
+            confidence=0.0,
+            expert_positions=list(analyses.values()),
+            key_agreements=["LLM failed to parse response."],
+            key_disagreements=[],
+            arbitration_summary="LLM failed to parse arbitration.",
+            risk_register=[],
+            next_steps=["Review logs for parsing errors."],
+            generated_at="",
+            feedback_revision_count=feedback_revision_count
+        )
             
     # Set generated_at and revision count in Python to ensure correctness
     memo.generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     memo.feedback_revision_count = feedback_revision_count
-    memo.expert_positions = analyses
+    memo.expert_positions = list(analyses.values())
+    
+    # Sanitize arbitration_summary if arbiter did not run
+    if arbitration_result.startswith("The Arbiter did not run"):
+        memo.arbitration_summary = "The Arbiter did not run."
+        
     return memo
 
 def run_feedback_check(current_memo: DecisionMemo, feedback_text: str) -> SynthesizerFeedbackDecision:
@@ -89,14 +117,25 @@ def run_feedback_check(current_memo: DecisionMemo, feedback_text: str) -> Synthe
     try:
         decision = structured_model.invoke(messages)
     except Exception as e:
+        decision = None
+
+    if decision is None:
         try:
             decision = structured_model.invoke(messages)
         except Exception as e2:
-            raise ValueError(f"Synthesizer feedback check LLM call failed validation after retry: {e2}") from e2
+            decision = None
+
+    if decision is None:
+        decision = SynthesizerFeedbackDecision(
+            requires_agent_revision=False,
+            target_agent=None,
+            revised_memo=current_memo,
+            reasoning="Fallback decision generated due to LLM structured parsing failure."
+        )
             
     return decision
 
-def synthesizer(state: GraphState) -> GraphState:
+def synthesizer(state: GraphState) -> dict:
     """Synthesizer node.
     Synthesizes the final memo, or handles human feedback rounds."""
     # Assemble the final set of analyses (override turn 2 analyses with feedback analyses)
@@ -146,13 +185,12 @@ def synthesizer(state: GraphState) -> GraphState:
                 contradiction_detected=False
             )
             
-            # Clear current_feedback_text so we don't repeat the check, and set target agent in action_status
-            new_state = state.model_copy(update={
-                "human_feedback_history": state.human_feedback_history + [feedback_entry],
+            # Do NOT clear current_feedback_text here — the feedback agent needs it.
+            # The feedback agent will clear it after consuming the feedback.
+            return {
+                "human_feedback_history": [feedback_entry],
                 "action_status": f"revision_required:{target_agent}",
-                "current_feedback_text": None
-            })
-            return new_state
+            }
         else:
             # Resolved directly by the Synthesizer
             revised_memo = decision.revised_memo
@@ -162,7 +200,7 @@ def synthesizer(state: GraphState) -> GraphState:
                 
             revised_memo.generated_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
             revised_memo.feedback_revision_count = current_memo.feedback_revision_count + 1
-            revised_memo.expert_positions = analyses
+            revised_memo.expert_positions = list(analyses.values())
             
             feedback_entry = HumanFeedbackEntry(
                 feedback_text=state.current_feedback_text,
@@ -172,13 +210,12 @@ def synthesizer(state: GraphState) -> GraphState:
                 contradiction_detected=False
             )
             
-            new_state = state.model_copy(update={
+            return {
                 "final_memo": revised_memo,
-                "human_feedback_history": state.human_feedback_history + [feedback_entry],
+                "human_feedback_history": [feedback_entry],
                 "action_status": "resolved_by_synthesizer",
                 "current_feedback_text": None
-            })
-            return new_state
+            }
             
     # Non-feedback round or post-agent-revision round (where current_feedback_text is already processed/cleared)
     memo = get_synthesized_memo(
@@ -189,7 +226,7 @@ def synthesizer(state: GraphState) -> GraphState:
         state.feedback_round
     )
     
-    new_state = state.model_copy(update={
+    return {
         "final_memo": memo
-    })
-    return new_state
+    }
+

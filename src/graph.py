@@ -11,9 +11,9 @@ from src.agents.synthesiser import synthesizer
 from src.guardrails.checks import guardrail_check
 
 
-def human_review(state: GraphState) -> GraphState:
+def human_review(state: GraphState) -> dict:
     """Dummy node to serve as the interrupt point for HITL."""
-    return state
+    return {}
 
 
 def build_graph(checkpointer=None):

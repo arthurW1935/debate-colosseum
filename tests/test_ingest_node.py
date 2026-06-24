@@ -10,15 +10,14 @@ def test_ingest_context_node_empty():
         context_docs=[]
     )
     
-    # Run node
-    new_state = ingest_context(state)
+    # Run node — now returns a partial dict
+    result = ingest_context(state)
     
-    # Assert retriever is None and other fields are unchanged
-    assert new_state.retriever is None
-    assert new_state.problem_statement == state.problem_statement
-    assert new_state.run_id == state.run_id
-    # Assert non-destructive update (id of state is different)
-    assert id(new_state) != id(state)
+    # Assert retriever is None
+    assert isinstance(result, dict)
+    assert result["retriever"] is None
+    # Assert context_docs is NOT in the returned dict (prevents doubling)
+    assert "context_docs" not in result
 
 def test_ingest_context_node_with_docs(tmp_path):
     # Create test documents
@@ -35,17 +34,14 @@ def test_ingest_context_node_with_docs(tmp_path):
         context_docs=[str(doc1), str(doc2)]
     )
     
-    # Run node
-    new_state = ingest_context(state)
+    # Run node — now returns a partial dict
+    result = ingest_context(state)
     
-    # Assert retriever is populated
-    assert new_state.retriever is not None
-    assert new_state.problem_statement == state.problem_statement
-    assert new_state.run_id == state.run_id
-    
-    # Query retriever
-    results = new_state.retriever.query(query_texts=["revenue"], n_results=1)
-    assert "revenue is $10M" in results["documents"][0][0]
-    
-    results_market = new_state.retriever.query(query_texts=["market growth"], n_results=1)
-    assert "Market size" in results_market["documents"][0][0]
+    # Assert retriever is populated (as raw chunks list)
+    assert isinstance(result, dict)
+    assert result["retriever"] is not None
+    assert isinstance(result["retriever"], list)
+    assert len(result["retriever"]) > 0
+    # Assert context_docs is NOT in the returned dict (prevents doubling)
+    assert "context_docs" not in result
+

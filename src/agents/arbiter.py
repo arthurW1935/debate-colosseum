@@ -12,7 +12,7 @@ You will be given:
 For each flagged point of disagreement, your job is to:
 1. Decide which position is better supported by the evidence and reasoning presented.
 2. Write a clear, objective ruling explaining your decision in one paragraph.
-3. Record the ruling in `rulings` as a dictionary with the following keys:
+3. Record the ruling in `rulings` as an object with the following keys:
    - `topic`: The name of the disputed topic.
    - `sided_with`: The agent role whose position you sided with (e.g. "finance", "growth", "risk"), or "compromise" if you created a middle-ground solution.
    - `reasoning`: A one-paragraph explanation of your ruling.
@@ -50,8 +50,8 @@ def arbiter(state: GraphState) -> GraphState:
         disagreements_str = "Flagged Disagreements:\n"
         for pt in report.flagged_points:
             disagreements_str += f"- Topic: {pt.topic}\n"
-            for role, pos in pt.positions.items():
-                disagreements_str += f"  * {role}: {pos}\n"
+            for pos in pt.positions:
+                disagreements_str += f"  * {pos.agent_role}: {pos.stance}\n"
     else:
         disagreements_str = (
             "The Moderator did not flag specific disagreement points, but the "

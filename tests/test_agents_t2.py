@@ -32,7 +32,7 @@ def t2_state():
     disagreement = DisagreementReport(
         score=0.8,
         flagged_points=[
-            DisagreementPoint(topic="Funding Adequacy", positions={"finance": "Viable", "risk": "Insufficient due to compliance"})
+            DisagreementPoint(topic="Funding Adequacy", positions=[{"agent_role": "finance", "stance": "Viable"}, {"agent_role": "risk", "stance": "Insufficient due to compliance"}])
         ],
         summary="Risk and Finance fundamentally disagree on the adequacy of $1M funding in light of GDPR fines.",
         route_decision="proceed_to_turn2"

@@ -39,6 +39,17 @@ def call_agent_with_retry(
             
         user_content += "\nPlease populate `dissent_notes` using the strict format `[Peer Role]: [Specific disagreement]` if you disagree with any peer's assumptions."
 
+    # Feedback round: inject the human's feedback and the memo being revised
+    if state.current_feedback_text:
+        user_content += "\n\n[FEEDBACK ROUND — Human Reviewer Note]\n"
+        user_content += f"{state.current_feedback_text}\n"
+        user_content += "\nYou MUST address the above feedback directly. Explain any changes in the `feedback_context` field.\n"
+        if state.final_memo:
+            user_content += f"\n[Current Decision Memo Being Revised]\n"
+            user_content += f"Recommendation: {state.final_memo.recommendation.value}\n"
+            user_content += f"Confidence: {state.final_memo.confidence}\n"
+            user_content += f"Executive Summary: {state.final_memo.executive_summary}\n"
+
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_content)]
     
     # 1. Allow the model to use tools if any are provided
@@ -129,6 +140,7 @@ def call_agent_with_retry(
         result = invoke_structured(messages)
         if result is None:
             raise ValueError("Model failed to invoke the structured output function call.")
+        result.round = str(turn) if turn in [1, 2] else "feedback"
         return result
     except Exception as e:
         # Retry exactly once
@@ -138,6 +150,7 @@ def call_agent_with_retry(
             result = invoke_structured_retry(messages)
             if result is None:
                 raise ValueError("Model failed to invoke the structured output function call on retry.")
+            result.round = str(turn) if turn in [1, 2] else "feedback"
             return result
         except Exception as retry_e:
             from src.schemas import Recommendation

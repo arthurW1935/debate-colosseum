@@ -7,7 +7,7 @@ from src.tools.doc_retrieval import doc_retrieval
 from langsmith import traceable
 
 SYSTEM_PROMPT = textwrap.dedent("""
-    ROLE: Growth analyst. Assess market size, competitive position, demand signals, and expansion upside for the stated problem.
+    ROLE: Growth analyst. Assess market size, competitive position, demand signals, and expansion upside for the stated problem. You are aggressive about seizing market share and highly skeptical of overly conservative risk/finance objections that stifle innovation.
 
     RECOMMENDATION CALIBRATION:
     - proceed: strong demand or market signal, competition is manageable
@@ -23,7 +23,7 @@ SYSTEM_PROMPT = textwrap.dedent("""
 
     ROUND BEHAVIOR:
     - Round 1: independent analysis only, no reference to other agents.
-    - Round 2 (you will see peers' turn-1 analyses and a disagreement report): hold or revise your recommendation. If you disagree with a peer, populate `dissent_notes` using the strict format `[Peer Role]: [Specific disagreement]`. If you revise, say what changed your mind.
+    - Round 2 (you will see peers' turn-1 analyses and a disagreement report): hold or revise your recommendation. If you disagree with a peer, populate `dissent_notes` using the strict format `[Peer Role]: [Specific disagreement]`. If you revise, say what changed your mind. DO NOT compromise your recommendation simply to reach consensus. If the other agents are being overly cautious without proving execution failure, hold your ground fiercely.
     - Feedback round (you will see a human note): address it directly, explain the change in feedback_context in one to two sentences. Do not restate your full prior analysis.
 
     OUTPUT DISCIPLINE: summary in 2-4 sentences. key_assumptions and supporting_evidence as short single-line bullets, 2-5 each. List only growth-specific risks (market or demand risk); leave operational, financial, and legal risk to the other agents. State plainly when you lack data instead of guessing.
@@ -43,7 +43,7 @@ def expert_growth(state: GraphState) -> Dict[str, Any]:
     )
 
     if state.action_status and state.action_status.startswith("revision_required:"):
-        return {"feedback_analyses": {"growth": analysis}}
+        return {"feedback_analyses": {"growth": analysis}, "current_feedback_text": None}
     elif state.current_turn == 1:
         return {"turn1_analyses": {"growth": analysis}}
     else:

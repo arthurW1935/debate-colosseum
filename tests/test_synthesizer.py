@@ -21,7 +21,7 @@ def test_synthesizer_initial_memo(mock_get_memo):
         executive_summary="Consensus is proceed",
         recommendation=Recommendation.PROCEED,
         confidence=0.8,
-        expert_positions={},
+        expert_positions=[],
         key_agreements=["Agree on market expansion"],
         key_disagreements=[],
         risk_register=[],
@@ -42,8 +42,9 @@ def test_synthesizer_initial_memo(mock_get_memo):
     )
 
     result = synthesizer(state)
-    assert result.final_memo.executive_summary == "Consensus is proceed"
-    assert result.final_memo.feedback_revision_count == 0
+    assert isinstance(result, dict)
+    assert result["final_memo"].executive_summary == "Consensus is proceed"
+    assert result["final_memo"].feedback_revision_count == 0
 
 @patch("src.agents.synthesiser.run_feedback_check")
 def test_synthesizer_feedback_synthesizer_only(mock_feedback_check):
@@ -52,7 +53,7 @@ def test_synthesizer_feedback_synthesizer_only(mock_feedback_check):
         executive_summary="Consensus is proceed, revised for headcount",
         recommendation=Recommendation.PROCEED,
         confidence=0.8,
-        expert_positions={},
+        expert_positions=[],
         key_agreements=["Agree"],
         key_disagreements=[],
         risk_register=[],
@@ -74,7 +75,7 @@ def test_synthesizer_feedback_synthesizer_only(mock_feedback_check):
             executive_summary="Consensus is proceed",
             recommendation=Recommendation.PROCEED,
             confidence=0.8,
-            expert_positions={},
+            expert_positions=[],
             key_agreements=["Agree"],
             key_disagreements=[],
             risk_register=[],
@@ -87,12 +88,13 @@ def test_synthesizer_feedback_synthesizer_only(mock_feedback_check):
     )
 
     result = synthesizer(state)
-    assert result.final_memo.executive_summary == "Consensus is proceed, revised for headcount"
-    assert result.final_memo.feedback_revision_count == 1
-    assert result.action_status == "resolved_by_synthesizer"
-    assert len(result.human_feedback_history) == 1
-    assert result.human_feedback_history[0].resolved_by == "synthesizer_only"
-    assert result.current_feedback_text is None  # Should be cleared
+    assert isinstance(result, dict)
+    assert result["final_memo"].executive_summary == "Consensus is proceed, revised for headcount"
+    assert result["final_memo"].feedback_revision_count == 1
+    assert result["action_status"] == "resolved_by_synthesizer"
+    assert len(result["human_feedback_history"]) == 1
+    assert result["human_feedback_history"][0].resolved_by == "synthesizer_only"
+    assert result["current_feedback_text"] is None  # Should be cleared
 
 @patch("src.agents.synthesiser.run_feedback_check")
 def test_synthesizer_feedback_targeted_agent(mock_feedback_check):
@@ -111,7 +113,7 @@ def test_synthesizer_feedback_targeted_agent(mock_feedback_check):
             executive_summary="Consensus is proceed",
             recommendation=Recommendation.PROCEED,
             confidence=0.8,
-            expert_positions={},
+            expert_positions=[],
             key_agreements=["Agree"],
             key_disagreements=[],
             risk_register=[],
@@ -124,8 +126,12 @@ def test_synthesizer_feedback_targeted_agent(mock_feedback_check):
     )
 
     result = synthesizer(state)
-    assert result.action_status == "revision_required:finance"
-    assert len(result.human_feedback_history) == 1
-    assert result.human_feedback_history[0].resolved_by == "targeted_agent"
-    assert result.human_feedback_history[0].target_agent_if_any == "finance"
-    assert result.current_feedback_text is None  # Should be cleared
+    assert isinstance(result, dict)
+    assert result["action_status"] == "revision_required:finance"
+    assert len(result["human_feedback_history"]) == 1
+    assert result["human_feedback_history"][0].resolved_by == "targeted_agent"
+    assert result["human_feedback_history"][0].target_agent_if_any == "finance"
+    # Bug 3 fix: current_feedback_text should NOT be cleared here —
+    # the feedback agent needs it and will clear it after consuming
+    assert "current_feedback_text" not in result
+

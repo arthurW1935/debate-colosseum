@@ -74,8 +74,10 @@ def test_moderator_t1_routing(mock_report):
         }
     )
     result = moderator_t1(state)
-    assert result.disagreement_report_t1.score == 0.0
-    assert result.disagreement_report_t1.route_decision == "skip_to_synthesis"
+    assert isinstance(result, dict)
+    assert result["disagreement_report_t1"].score == 0.0
+    assert result["disagreement_report_t1"].route_decision == "skip_to_synthesis"
+    assert result["current_turn"] == 2
 
     # 2. Disagreement path (score >= 0.2) — needs recs + confidence + risk divergence
     state_disagree = GraphState(
@@ -90,8 +92,9 @@ def test_moderator_t1_routing(mock_report):
         }
     )
     result_disagree = moderator_t1(state_disagree)
-    assert result_disagree.disagreement_report_t1.score >= 0.2
-    assert result_disagree.disagreement_report_t1.route_decision == "proceed_to_turn2"
+    assert isinstance(result_disagree, dict)
+    assert result_disagree["disagreement_report_t1"].score >= 0.2
+    assert result_disagree["disagreement_report_t1"].route_decision == "proceed_to_turn2"
 
 @patch("src.agents.moderator.get_moderator_report")
 def test_moderator_t2_routing(mock_report):
@@ -100,7 +103,7 @@ def test_moderator_t2_routing(mock_report):
         summary="Some disagreements"
     )
 
-    # 1. Low/Medium disagreement path (score < 0.7) — mild rec difference only
+    # 1. Low/Medium disagreement path (score < 0.4) — mild rec difference only
     state_medium = GraphState(
         problem_statement="Test problem",
         run_id="run-3",
@@ -111,10 +114,11 @@ def test_moderator_t2_routing(mock_report):
         }
     )
     result_medium = moderator_t2(state_medium)
-    assert result_medium.disagreement_report_t2.score < 0.7
-    assert result_medium.disagreement_report_t2.route_decision == "skip_to_synthesis"
+    assert isinstance(result_medium, dict)
+    assert result_medium["disagreement_report_t2"].score < 0.4
+    assert result_medium["disagreement_report_t2"].route_decision == "skip_to_synthesis"
 
-    # 2. High disagreement path (score >= 0.7) — max rec divergence + confidence + risk severity
+    # 2. High disagreement path (score >= 0.4) — max rec divergence + confidence + risk severity
     state_high = GraphState(
         problem_statement="Test problem",
         run_id="run-4",
@@ -130,6 +134,7 @@ def test_moderator_t2_routing(mock_report):
         }
     )
     result_high = moderator_t2(state_high)
-    assert result_high.disagreement_report_t2.score >= 0.7
-    assert result_high.disagreement_report_t2.route_decision == "proceed_to_arbiter"
+    assert isinstance(result_high, dict)
+    assert result_high["disagreement_report_t2"].score >= 0.4
+    assert result_high["disagreement_report_t2"].route_decision == "proceed_to_arbiter"
 

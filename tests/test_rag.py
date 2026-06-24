@@ -116,12 +116,10 @@ def test_doc_retrieval_with_rerank(mock_get_reranker):
         {"text": "Apple is a fruit.", "source": "apples.txt", "chunk_index": 0},
         {"text": "Banana is also a fruit.", "source": "bananas.txt", "chunk_index": 0},
     ]
-    collection = build_vector_store(chunks)
-    
     # Cosine query will get candidates. We mock reranking scores so that
     # the second candidate gets scored 0.9, while the first gets 0.1.
     # Therefore, the second candidate (Banana) should rank first.
-    results = doc_retrieval("Which fruit is yellow?", collection)
+    results = doc_retrieval("Which fruit is yellow?", chunks)
     
     assert len(results) == 2
     # banana should rank first because its mock rerank score is 0.9

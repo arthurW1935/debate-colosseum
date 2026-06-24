@@ -20,7 +20,9 @@ def base_state():
         ]
     )
     from src.rag.ingest import ingest_context
-    return ingest_context(initial_state)
+    result_dict = ingest_context(initial_state)
+    initial_state.retriever = result_dict["retriever"]
+    return initial_state
 
 def test_e2e_expert_growth(base_state):
     result = expert_growth(base_state)

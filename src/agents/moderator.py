@@ -11,7 +11,7 @@ Your job is to read the independent analyses of the Growth, Finance, and Risk ex
 
 For each point of disagreement:
 1. Identify a clear, concise topic (e.g., "Market size assumptions", "NPV calculation", "Regulatory risk level").
-2. Detail the exact position of each agent on this topic in the `positions` dictionary mapping the agent's role (growth, finance, or risk) to their stance. Only include agents that actually expressed a position on this topic.
+2. Detail the exact position of each agent on this topic in the `positions` list, creating an object with the agent's role (growth, finance, or risk) and their stance. Only include agents that actually expressed a position on this topic.
 
 Finally, write a human-readable 2-3 sentence summary of the main conflicts.
 
@@ -96,7 +96,7 @@ def get_moderator_report(problem_statement: str, analyses: dict[str, ExpertAnaly
         except Exception as e2:
             raise ValueError(f"Moderator LLM call failed validation after retry: {e2}") from e2
 
-def moderator_t1(state: GraphState) -> GraphState:
+def moderator_t1(state: GraphState) -> dict:
     """Moderator node after Turn 1.
     Computes disagreement score and routes either to synthesis (consensus) or to Turn 2."""
     analyses = state.turn1_analyses
@@ -113,14 +113,12 @@ def moderator_t1(state: GraphState) -> GraphState:
         route_decision=route_decision
     )
     
-    # Return a new state to avoid mutation in place
-    new_state = state.model_copy(update={
+    return {
         "disagreement_report_t1": report,
         "current_turn": 2
-    })
-    return new_state
+    }
 
-def moderator_t2(state: GraphState) -> GraphState:
+def moderator_t2(state: GraphState) -> dict:
     """Moderator node after Turn 2.
     Computes disagreement score and routes either to synthesis or to Arbiter."""
     analyses = state.turn2_analyses
@@ -128,7 +126,7 @@ def moderator_t2(state: GraphState) -> GraphState:
     
     llm_output = get_moderator_report(state.problem_statement, analyses)
     
-    route_decision = "proceed_to_arbiter" if score >= 0.7 else "skip_to_synthesis"
+    route_decision = "proceed_to_arbiter" if score >= 0.4 else "skip_to_synthesis"
     
     report = DisagreementReport(
         score=score,
@@ -137,8 +135,7 @@ def moderator_t2(state: GraphState) -> GraphState:
         route_decision=route_decision
     )
     
-    new_state = state.model_copy(update={
-        "disagreement_report_t2": report,
-        "current_turn": 2
-    })
-    return new_state
+    return {
+        "disagreement_report_t2": report
+    }
+
