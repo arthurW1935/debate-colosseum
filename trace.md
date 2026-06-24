@@ -210,5 +210,52 @@ This file maintains a running log of all actions taken by the AI orchestrator an
 
 ## Known Issues / Flags for Other Tracks
 
-- `src/guardrails.py/checks.py` — directory is named `guardrails.py` (with `.py` suffix) instead of `guardrails/`. Track C should rename this before implementing checks.py to avoid import errors.
-- `src/agents/synthesiser.py` — British spelling vs `synthesizer` used everywhere else. Track C should rename before implementing.
+- `src/guardrails.py/checks.py` — directory is named `guardrails.py` (with `.py` suffix) instead of `guardrails/`. Track C should rename this before implementing checks.py to avoid import errors. *(Resolved in Phase 2 merge — Track C renamed correctly.)*
+- `src/agents/synthesiser.py` — British spelling vs `synthesizer` used everywhere else. Track C should rename before implementing. *(Accepted as-is; synthesiser.py retained.)*
+
+---
+
+## Phase 2 — Track D Session 2 (Next.js UI, Backend Hardening)
+
+**Owner: Person D**
+**Date: 2026-06-24**
+
+### Next.js Frontend — Full Replacement of Streamlit (`frontend-next/`)
+
+Replaced the Streamlit dashboard (`frontend/app.py`) with a production-grade Next.js 14 app. Streamlit file deleted. Next.js app covers all D5–D8 requirements with significant UX improvements.
+
+- **`frontend-next/app/page.tsx`** — Landing page: problem statement textarea, multi-file attach (PDF/TXT/MD), submit button. On submit calls `POST /runs`, stores run in `localStorage`, navigates to `/run/[runId]`.
+- **`frontend-next/app/run/[runId]/page.tsx`** — Debate view: polls `GET /runs/{id}/status` every 2 seconds. Manages memo version history in component state. Shows live elapsed timer in top bar. Handles `awaiting_review` → HITL controls. Handles 404 (server restart) with clean "Run not found" screen.
+- **`frontend-next/components/Sidebar.tsx`** — Persists all run history in `localStorage`. Shows problem preview + live status dot (blue pulse = running, amber pulse = awaiting review, green = completed). Clickable to navigate between runs.
+- **`frontend-next/components/DebateFeed.tsx`** — Progressive phase feed derived from status response: Context Ingestion → Turn 1 agents → Moderator → Turn 2 agents → Synthesizer → Guardrail. Shows spinner on active phases. Stacks memo versions with feedback dividers between them. Shows re-processing spinner when agents are re-running after feedback.
+- **`frontend-next/components/MemoCard.tsx`** — Full structured memo card: recommendation badge (green/amber/red), confidence %, executive summary, agreements/disagreements columns, arbitration block, expert positions (3-up grid with expand), risk register table, next steps. Old versions collapse to header bar; latest is expanded. Version badge (`v1`, `v2`).
+- **`frontend-next/components/QueryBox.tsx`** — Bottom input bar. Disabled/greyed while `status=running`. Active when `status=awaiting_review`: shows Approve, Send Feedback, Abandon buttons. Feedback textarea only appears on "Send Feedback" click. Enter key submits. Error display inline.
+- **`frontend-next/lib/api.ts`** — `createRun`, `getRunStatus`, `submitReview`. `RunNotFoundError` class for 404 detection.
+- **`frontend-next/lib/storage.ts`** — `localStorage` helpers: `getRuns`, `addRun`, `updateRunStatus`.
+- **`frontend-next/types/index.ts`** — Shared TypeScript types matching backend Pydantic schemas.
+
+### Backend Hardening (`src/api/main.py`, `src/config.py`)
+
+- **LLM call timeout:** Added `timeout=90` to `get_chat_model()` in `src/config.py`. Prevents individual LLM API calls from hanging indefinitely (each agent makes ~4 calls including tool use rounds).
+- **Graph execution timeout:** Wrapped `asyncio.to_thread(graph.invoke, ...)` in `asyncio.wait_for(..., timeout=600)` in both `_run_graph` and `_resume_graph`. 10-minute hard limit surfaces as `error` status with a clear message instead of a zombie run.
+- **Explicit TimeoutError handling:** Added `except asyncio.TimeoutError` branch so timeout is reported cleanly to the status endpoint.
+- **404 handling on frontend:** `getRunStatus` raises `RunNotFoundError` on HTTP 404 (backend restarted, in-memory store cleared). Run page catches it, stops polling, marks run as error in sidebar, shows "Run not found — backend was restarted" screen.
+
+### Infrastructure
+
+- Fixed `requirements.txt` encoding: file was committed as UTF-16 with embedded null bytes. Re-written as clean UTF-8 (no BOM) using Python byte-level decode + null-strip.
+- Added `frontend-next/.gitignore` (excludes `.next/`, `node_modules/`, `.env.local`).
+- Root `.gitignore` pattern `lib/` was excluding `frontend-next/lib/`; forced-added with `git add -f`.
+
+### Version Tracking Bug Fix
+
+- **Bug:** Memo version was being captured on every poll tick, including during re-processing when the backend still holds the previous `final_memo`. This caused the old memo to appear as "v2" immediately after feedback submission.
+- **Fix:** Changed memo snapshot condition from `if (data.final_memo)` to `if (data.final_memo && data.status === 'awaiting_review')`. Memos are now only captured when the graph has fully paused for human review, guaranteeing each version is the definitive synthesizer output.
+
+## Current State (2026-06-24)
+
+- All Track D deliverables complete and pushed to `main` (commit `44c5c99`).
+- Next.js UI running at `http://localhost:3000`.
+- Backend running at `http://localhost:8000` via `uvicorn src.api.main:app --reload`.
+- Full run flow verified: problem input → agent debate → decision memo → HITL → Slack action.
+- Known limitation: backend uses in-memory store (`MemorySaver`) — runs are lost on server restart.
