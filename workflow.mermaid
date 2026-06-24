@@ -1,0 +1,147 @@
+graph TD
+    %% Styling and Palettes
+    classDef startEnd fill:#1e1e2e,stroke:#cdd6f4,stroke-width:2px,color:#cdd6f4;
+    classDef process fill:#313244,stroke:#89b4fa,stroke-width:1.5px,color:#cdd6f4;
+    classDef agent fill:#1e1e2e,stroke:#a6e3a1,stroke-width:1.5px,color:#a6e3a1;
+    classDef decision fill:#313244,stroke:#f9e2af,stroke-width:1.5px,color:#f9e2af;
+    classDef inputOutput fill:#181825,stroke:#f5c2e7,stroke-width:1.5px,color:#f5c2e7;
+    classDef hitl fill:#313244,stroke:#f38ba8,stroke-width:2px,color:#f38ba8;
+
+    %% Elements
+    Start([Start Run]):::startEnd
+    
+    %% Input Stage
+    subgraph InputStage ["1. Input & RAG Ingestion"]
+        Input["Problem Statement & Docs (PDF/TXT/MD)"]:::inputOutput
+        IngestNode["ingest_context (Node)"]:::process
+        ChromaStore[("Ephemeral Chroma DB")]:::inputOutput
+        Reranker["Cross-Encoder Reranker\n(ms-marco-MiniLM-L-6-v2)"]:::process
+    end
+    
+    %% Turn 1 Expert Analysis
+    subgraph Turn1 ["2. Turn 1: Independent Analysis"]
+        GrowthT1["expert_growth (Node)\nGrowth Agent"]:::agent
+        FinanceT1["expert_finance (Node)\nFinance Agent"]:::agent
+        RiskT1["expert_risk (Node)\nRisk Agent"]:::agent
+        FinCalc["financial_calculator (Tool)\n(NPV, ROI, IRR, Breakeven)"]:::process
+        TavilySearch["web_search (Tool)\n(Tavily API)"]:::process
+        DocRetrieval["doc_retrieval (Tool)"]:::process
+    end
+
+    %% Moderation Stage 1
+    subgraph Moderation1 ["3. Turn 1 Moderation"]
+        ModeratorT1["moderator_t1 (Node)\nDeterministic scoring (0.0 - 1.0)"]:::decision
+        CheckT1{"Score >= 0.2?"}:::decision
+    end
+
+    %% Turn 2 Peer-Aware Revision
+    subgraph Turn2 ["4. Turn 2: Peer-Aware Revision"]
+        GrowthT2["expert_growth_r2 (Node)\nGrowth Agent (Turn 2)"]:::agent
+        FinanceT2["expert_finance_r2 (Node)\nFinance Agent (Turn 2)"]:::agent
+        RiskT2["expert_risk_r2 (Node)\nRisk Agent (Turn 2)"]:::agent
+    end
+
+    %% Moderation Stage 2
+    subgraph Moderation2 ["5. Turn 2 Moderation"]
+        ModeratorT2["moderator_t2 (Node)\nDeterministic re-scoring"]:::decision
+        CheckT2{"Score >= 0.7?"}:::decision
+    end
+
+    %% Turn 3 Arbiter
+    subgraph Turn3 ["6. Turn 3: Focused Arbitration"]
+        ArbiterNode["arbiter (Node)\nRules on specific conflicts"]:::agent
+    end
+
+    %% Synthesis & Guardrails
+    subgraph SynthesisStage ["7. Synthesis & Quality Gate"]
+        SynthesizerNode["synthesizer (Node)\nDecisionMemo Compiler"]:::process
+        GuardrailNode["guardrail_check (Node)\nRule-based + LLM Ethical Safety"]:::process
+    end
+
+    %% Human in the Loop
+    subgraph HITL ["8. Human-in-the-Loop Review"]
+        HumanReviewNode["human_review (Node)\n(LangGraph Interrupt Point)"]:::hitl
+        FastAPI["FastAPI Backend\nPOST /review"]:::process
+        Streamlit["Streamlit UI\nApprove / Feedback / Abandon"]:::inputOutput
+        CheckDecision{"Human Decision?"}:::decision
+    end
+
+    %% Feedback loop handling
+    subgraph FeedbackLoop ["9. Feedback Loop Processing"]
+        SlackWebhook["Slack Webhook Action\n(Sends Memo on Approval)"]:::inputOutput
+        GatekeeperNode["moderator_gatekeeper (Node)\nCheck feedback scope"]:::decision
+        CheckTarget{"Target?"}:::decision
+        GrowthFB["expert_growth_fb (Node)"]:::agent
+        FinanceFB["expert_finance_fb (Node)"]:::agent
+        RiskFB["expert_risk_fb (Node)"]:::agent
+    end
+
+    %% Connections
+    Start --> Input
+    Input --> IngestNode
+    IngestNode --> ChromaStore
+    
+    %% RAG Retrieval
+    ChromaStore --> DocRetrieval
+    DocRetrieval --> Reranker
+    Reranker --> GrowthT1
+    Reranker --> FinanceT1
+    Reranker --> RiskT1
+
+    %% Turn 1 Tooling
+    GrowthT1 -.-> TavilySearch
+    GrowthT1 -.-> DocRetrieval
+    FinanceT1 -.-> FinCalc
+    FinanceT1 -.-> DocRetrieval
+    RiskT1 -.-> TavilySearch
+    RiskT1 -.-> DocRetrieval
+
+    %% To Moderator 1
+    GrowthT1 --> ModeratorT1
+    FinanceT1 --> ModeratorT1
+    RiskT1 --> ModeratorT1
+    ModeratorT1 --> CheckT1
+
+    %% Moderator 1 Routes
+    CheckT1 -- "No (Score < 0.2)" --> SynthesizerNode
+    CheckT1 -- "Yes (Score >= 0.2)" --> GrowthT2
+    CheckT1 -- "Yes (Score >= 0.2)" --> FinanceT2
+    CheckT1 -- "Yes (Score >= 0.2)" --> RiskT2
+
+    %% Turn 2 Peer Context Injection
+    GrowthT2 --> ModeratorT2
+    FinanceT2 --> ModeratorT2
+    RiskT2 --> ModeratorT2
+    ModeratorT2 --> CheckT2
+
+    %% Moderator 2 Routes
+    CheckT2 -- "No (Score < 0.7)" --> SynthesizerNode
+    CheckT2 -- "Yes (Score >= 0.7)" --> ArbiterNode
+    ArbiterNode --> SynthesizerNode
+
+    %% Post Synthesis
+    SynthesizerNode --> GuardrailNode
+    GuardrailNode --> HumanReviewNode
+    
+    %% Human interaction
+    HumanReviewNode <--> FastAPI
+    FastAPI <--> Streamlit
+    HumanReviewNode --> CheckDecision
+
+    %% Human Decision Routes
+    CheckDecision -- "approved" --> SlackWebhook
+    CheckDecision -- "abandoned" --> End([End Run]):::startEnd
+    SlackWebhook --> End
+    
+    CheckDecision -- "feedback" --> GatekeeperNode
+    
+    %% Feedback routes
+    GatekeeperNode --> CheckTarget
+    CheckTarget -- "synthesizer_only" --> SynthesizerNode
+    CheckTarget -- "growth" --> GrowthFB
+    CheckTarget -- "finance" --> FinanceFB
+    CheckTarget -- "risk" --> RiskFB
+    
+    GrowthFB --> SynthesizerNode
+    FinanceFB --> SynthesizerNode
+    RiskFB --> SynthesizerNode
