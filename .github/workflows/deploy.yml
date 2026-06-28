@@ -75,8 +75,19 @@ jobs:
           ####################################
           # Python environment
           ####################################
-          if [ ! -d ".venv" ]; then
-              python3 -m venv .venv
+
+          # Ensure python3-venv is available
+          if ! python3 -m venv --help > /dev/null 2>&1; then
+            echo "==> Installing python3-venv..."
+            sudo apt-get update -qq
+            sudo apt-get install -y python3-venv
+          fi
+
+          # Recreate venv if activate script is missing (broken venv)
+          if [ ! -f ".venv/bin/activate" ]; then
+            echo "==> Creating virtual environment..."
+            rm -rf .venv
+            python3 -m venv .venv
           fi
 
           source .venv/bin/activate
@@ -137,9 +148,11 @@ jobs:
               exit 0
             fi
 
+            echo "Attempt $i: got $STATUS, retrying in 5s..."
             sleep 5
           done
 
+          echo "Frontend health check failed after 60s"
           exit 1
 
       - name: Health Check Backend
@@ -152,7 +165,9 @@ jobs:
               exit 0
             fi
 
+            echo "Attempt $i: got $STATUS, retrying in 5s..."
             sleep 5
           done
 
+          echo "Backend health check failed after 60s"
           exit 1
