@@ -1,0 +1,140 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Write .env file to EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cat > /home/${{ secrets.EC2_USER }}/debate-colosseum/.env" << 'EOF'
+          LLM_PROVIDER=${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL=${{ secrets.LLM_MODEL }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          LANGSMITH_TRACING=true
+          LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+          LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+          EOF
+
+      - name: Write frontend .env to EC2
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cat > /home/${{ secrets.EC2_USER }}/debate-colosseum/frontend-next/.env.local" << 'EOF'
+          NEXT_PUBLIC_API_BASE=${{ secrets.NEXT_PUBLIC_API_BASE }}/api
+          EOF
+
+      - name: Deploy & restart services
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            set -e
+            APP_DIR="/home/$USER/debate-colosseum"
+
+            echo "==> Pulling latest code"
+            cd "$APP_DIR"
+            git fetch origin production
+            git reset --hard origin/production
+
+            echo "==> Installing backend dependencies"
+            source .venv/bin/activate || python3 -m venv .venv && source .venv/bin/activate
+            pip install -r requirements.txt --quiet
+
+            echo "==> Building frontend"
+            cd frontend-next
+            npm ci --prefer-offline
+            npm run build
+            cd ..
+
+            echo "==> Restarting backend (debate-backend.service)"
+            sudo systemctl restart debate-backend.service
+
+            echo "==> Restarting frontend (debate-frontend.service)"
+            sudo systemctl restart debate-frontend.service
+          ENDSSH
+
+      - name: Deploy Nginx config
+        run: |
+          # Copy config to EC2
+          scp -i ~/.ssh/deploy_key \
+            deploy/nginx.conf \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/debate-colosseum.conf
+
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            set -e
+            echo "==> Installing Nginx config"
+            sudo cp /tmp/debate-colosseum.conf /etc/nginx/sites-available/debate-colosseum
+            sudo ln -sf /etc/nginx/sites-available/debate-colosseum \
+                        /etc/nginx/sites-enabled/debate-colosseum
+            # Remove default site if it exists (conflicts on port 80)
+            sudo rm -f /etc/nginx/sites-enabled/default
+
+            echo "==> Testing Nginx config"
+            sudo nginx -t
+
+            echo "==> Reloading Nginx"
+            sudo systemctl reload nginx
+          ENDSSH
+
+      - name: Health check — frontend via Nginx (port 80)
+        run: |
+          echo "Waiting for frontend to come up..."
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://${{ secrets.EC2_HOST }}/" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend healthy (HTTP $STATUS)"
+              break
+            fi
+            echo "  attempt $i/12 — got HTTP $STATUS, retrying in 5s..."
+            sleep 5
+            if [ "$i" = "12" ]; then
+              echo "Frontend health check failed after 60s"
+              exit 1
+            fi
+          done
+
+      - name: Health check — backend API via Nginx (port 80)
+        run: |
+          echo "Waiting for backend to come up..."
+          for i in $(seq 1 12); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "http://${{ secrets.EC2_HOST }}/docs" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend healthy (HTTP $STATUS)"
+              break
+            fi
+            echo "  attempt $i/12 — got HTTP $STATUS, retrying in 5s..."
+            sleep 5
+            if [ "$i" = "12" ]; then
+              echo "Backend health check failed after 60s"
+              exit 1
+            fi
+          done
+
+      - name: Notify success
+        if: success()
+        run: echo "Deployment successful — backend and frontend are healthy."
+
+      - name: Notify failure
+        if: failure()
+        run: echo "Deployment failed — check the logs above."

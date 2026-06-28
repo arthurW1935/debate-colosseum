@@ -1,0 +1,17 @@
+[Unit]
+Description=Debate Colosseum Next.js Frontend
+After=network.target debate-backend.service
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/debate-colosseum/frontend-next
+EnvironmentFile=/home/%i/debate-colosseum/frontend-next/.env.local
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
