@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=%i
-WorkingDirectory=/home/%i/debate-colosseum
-EnvironmentFile=/home/%i/debate-colosseum/.env
-ExecStart=/home/%i/debate-colosseum/.venv/bin/uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 2
+WorkingDirectory=/home/ubuntu/debate-colosseum
+EnvironmentFile=/home/ubuntu/debate-colosseum/.env
+ExecStart=/home/ubuntu/debate-colosseum/.venv/bin/uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --workers 2
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
