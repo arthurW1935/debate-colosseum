@@ -5,8 +5,8 @@ After=network.target debate-backend.service
 [Service]
 Type=simple
 User=%i
-WorkingDirectory=/home/%i/debate-colosseum/frontend-next
-EnvironmentFile=/home/%i/debate-colosseum/frontend-next/.env.local
+WorkingDirectory=/home/ubuntu/debate-colosseum/frontend-next
+EnvironmentFile=/home/ubuntu/debate-colosseum/frontend-next/.env.local
 ExecStart=/usr/bin/npm start
 Restart=on-failure
 RestartSec=5
