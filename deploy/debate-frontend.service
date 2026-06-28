@@ -4,7 +4,7 @@ After=network.target debate-backend.service
 
 [Service]
 Type=simple
-User=%i
+User=ubuntu
 WorkingDirectory=/home/ubuntu/debate-colosseum/frontend-next
 EnvironmentFile=/home/ubuntu/debate-colosseum/frontend-next/.env.local
 ExecStart=/usr/bin/npm start
