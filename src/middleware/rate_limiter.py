@@ -66,11 +66,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             window = 3600
             allowed, remaining, retry_after = run_creation_limiter.check_rate_limit(identifier, limit, window)
             window_str = "1 hour"
-        else:
+        elif path.startswith("/runs/") and path.endswith("/review") and request.method == "POST":
             limit = settings.RATE_LIMIT_REQUESTS_PER_MINUTE
             window = 60
             allowed, remaining, retry_after = general_limiter.check_rate_limit(identifier, limit, window)
             window_str = "1 minute"
+        else:
+            # Skip rate limiting for cheap operations (polling status, fetching history)
+            return await call_next(request)
             
         if not allowed:
             headers = {
