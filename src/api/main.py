@@ -24,6 +24,8 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadF
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from src.middleware.rate_limiter import RateLimitMiddleware
+
 from src.config import settings
 from src.hitl.review import handle_review
 from src.schemas import DecisionMemo, GraphState
@@ -73,6 +75,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: Optional[str] = None
     TAVILY_API_KEY: Optional[str] = None
 
+    # Rate Limiting
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = 15
+    RATE_LIMIT_RUNS_PER_HOUR: int = 5
+
     # External action
     SLACK_WEBHOOK_URL: Optional[str] = None
 
