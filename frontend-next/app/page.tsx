@@ -3,7 +3,10 @@ import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createRun } from '@/lib/api';
 import { addRun } from '@/lib/storage';
-import { Upload, X, ArrowRight, Loader2 } from 'lucide-react';
+import Sidebar from '@/components/Sidebar';
+import ThemeToggle from '@/components/ThemeToggle';
+import { useThemeMode } from '@/components/useThemeMode';
+import { ArrowRight, FileText, Loader2, PanelLeftOpen, Plus, X } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -11,6 +14,9 @@ export default function LandingPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useThemeMode();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,66 +45,116 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center px-4 relative overflow-hidden">
-      {/* Ambient glow */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-indigo-900/20 rounded-full blur-[120px]" />
-      </div>
+    <div
+      data-theme={theme}
+      className="executive-shell relative flex min-h-screen overflow-hidden text-[var(--text-primary)]"
+      onDragOver={e => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={e => {
+        e.preventDefault();
+        setDragging(false);
+        addFiles(e.dataTransfer.files);
+      }}
+    >
+      {sidebarOpen && <Sidebar onToggle={() => setSidebarOpen(false)} />}
 
-      <div className="relative w-full max-w-xl z-10">
-        {/* Hero */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 mb-5 text-3xl">
-            ⚔️
-          </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Debate Colosseum</h1>
-          <p className="text-slate-500 mt-2 text-sm">
-            Growth · Finance · Risk agents deliberate your hardest decisions
+      {!sidebarOpen && (
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className="absolute left-6 top-6 z-30 flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] shadow-sm transition hover:-translate-y-0.5"
+          aria-label="Show side panel"
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+        </button>
+      )}
+
+      <main className="relative flex min-h-screen flex-1 flex-col items-center justify-center px-4">
+        <div className="absolute right-6 top-6 z-20">
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
+        </div>
+
+      <div className="relative z-10 w-full max-w-3xl">
+        <div className="mb-10 text-center">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-[var(--accent-strong)]">
+            Debate Colosseum
+          </p>
+          <h1 className="font-serif-memo text-4xl leading-tight tracking-[-0.025em] text-[var(--text-primary)] sm:text-5xl">
+            What's the next move?
+          </h1>
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-[var(--text-secondary)]">
+            A not-so-calm executive workspace where specialist agents debate growth, finance, and risk before drafting a serious decision memo.
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* Input card */}
-          <div className="rounded-2xl bg-white/[0.04] border border-white/[0.08] overflow-hidden focus-within:border-indigo-500/40 transition-colors duration-200">
+          <div
+            className={`glass-panel overflow-hidden rounded-[32px] transition ${
+              dragging ? 'scale-[1.01] border-[var(--accent)] ring-4 ring-[var(--accent-soft)]' : ''
+            }`}
+          >
             <textarea
               value={problem}
               onChange={e => setProblem(e.target.value)}
-              placeholder={`Describe the decision you need to make…\n\ne.g. Should we expand into the EU market next quarter? We have €2M ARR, 3 engineers, and no EU legal entity.`}
-              rows={6}
-              className="w-full bg-transparent px-5 pt-4 pb-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none resize-none leading-relaxed"
+              placeholder="Should we expand into the EU market next quarter? Include constraints, documents, or board context..."
+              rows={5}
+              className="w-full resize-none bg-transparent px-6 pb-3 pt-6 text-base leading-7 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-tertiary)]"
             />
 
-            {/* Attachment bar */}
-            <div className="px-4 py-3 border-t border-white/[0.05] bg-white/[0.01]">
+            <div className="border-t border-[var(--border)] bg-[var(--surface)]/50 px-5 py-4">
               {files.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2.5">
+                <div className="mb-3 flex flex-wrap gap-2">
                   {files.map((f, i) => (
                     <span
                       key={i}
-                      className="flex items-center gap-1.5 text-xs bg-white/[0.07] text-slate-300 border border-white/[0.08] px-2.5 py-1 rounded-full"
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)]"
                     >
-                      📎 {f.name}
+                      <FileText className="h-3.5 w-3.5 text-[var(--accent-strong)]" />
+                      {f.name}
                       <button
                         type="button"
                         onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
-                        className="ml-0.5"
+                        className="rounded-full p-0.5 transition hover:bg-[var(--surface-subtle)]"
+                        aria-label={`Remove ${f.name}`}
                       >
-                        <X className="w-3 h-3 text-slate-500 hover:text-slate-300 transition-colors" />
+                        <X className="h-3 w-3" />
                       </button>
                     </span>
                   ))}
                 </div>
               )}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-400 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-raised)] px-3.5 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:-translate-y-0.5 hover:text-[var(--text-primary)]"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  Attach documents
+                  <Plus className="h-3.5 w-3.5" />
+                  Add documents
                 </button>
-                <span className="text-[10px] text-slate-700">PDF · TXT · MD</span>
+                <span className="hidden text-xs text-[var(--text-tertiary)] sm:inline">
+                  Drag and drop PDF, TXT, or MD files anywhere
+                </span>
+                <button
+                  type="submit"
+                  disabled={!problem.trim() || loading}
+                  className="inline-flex items-center gap-2 rounded-full bg-[var(--text-primary)] px-5 py-2.5 text-sm font-semibold text-[var(--app-bg)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Starting
+                    </>
+                  ) : (
+                    <>
+                      Start debate
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
               </div>
               <input
                 ref={fileRef}
@@ -112,31 +168,31 @@ export default function LandingPage() {
           </div>
 
           {error && (
-            <div className="mt-3 px-4 py-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
-              <p className="text-xs text-red-400">{error}</p>
+            <div className="mt-3 rounded-2xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 px-4 py-3">
+              <p className="text-xs text-[var(--danger)]">{error}</p>
             </div>
           )}
-
-          <button
-            type="submit"
-            disabled={!problem.trim() || loading}
-            className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-sm font-semibold text-white transition-colors duration-150"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Starting debate…
-              </>
-            ) : (
-              <>
-                Start Debate
-                <ArrowRight className="w-4 h-4" />
-              </>
-            )}
-          </button>
         </form>
 
+        <div className="mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+          {[
+            ['Market expansion', 'Stress-test demand, timing, and rollout risk.'],
+            ['Pricing change', 'Debate growth upside against margin pressure.'],
+            ['Hiring plan', 'Evaluate runway, delivery risk, and sequencing.'],
+          ].map(([title, body]) => (
+            <button
+              key={title}
+              type="button"
+              onClick={() => setProblem(body)}
+              className="rounded-3xl border border-[var(--border)] bg-[var(--surface)]/65 p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-[var(--border-strong)]"
+            >
+              <p className="font-semibold text-[var(--text-primary)]">{title}</p>
+              <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">{body}</p>
+            </button>
+          ))}
+        </div>
       </div>
+      </main>
     </div>
   );
 }

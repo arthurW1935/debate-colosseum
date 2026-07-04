@@ -2,6 +2,21 @@
 
 This file maintains a running log of all actions taken by the AI orchestrator and its subagents.
 
+## UI Redesign Implementation
+
+**Date:** 2026-07-04
+
+- Created and revised a Figma prototype for the new Debate Colosseum UI direction before code changes.
+- Implemented a warm light executive default theme with a top-right light/dark toggle and retained dark styling for live debate surfaces.
+- Updated the Next.js UI to use Geist for product UI and Source Serif 4 for memo/hero typography.
+- Reworked the landing page into a Gemini-like executive chat start with drag-and-drop document upload.
+- Replaced the technical progress checklist with a moderator-centered animated debate graph featuring Growth, Finance, Risk, Arbiter, and Synthesizer nodes.
+- Rebuilt the decision memo as a memo-first workspace with version selection, query trail, board-ready memo styling, and a floating refinement composer.
+- Removed approve/send UI from the current product flow; users now send refinement queries to generate further memo versions.
+- Added sidebar hover-delete behavior and local run deletion support.
+- Extended the FastAPI status response with memo version snapshots, problem statement, and human feedback history for richer UI state.
+- Verified with `npm run build`, `python -m py_compile src\api\main.py`, and IDE lint diagnostics.
+
 ## Completed Actions
 
 - **Project Scaffold Verification:** Verified that the user successfully created the directory structures for `src`, `tests`, and `frontend`.

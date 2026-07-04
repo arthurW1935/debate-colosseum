@@ -22,7 +22,7 @@ from typing import Literal, Optional
 import httpx
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.config import settings
 from src.hitl.review import handle_review
@@ -40,6 +40,7 @@ class RunRecord:
     state: GraphState
     status: str = "running"   # running | awaiting_review | completed | error
     error: Optional[str] = None
+    memo_versions: list[dict] = field(default_factory=list)
     # Background asyncio task reference (kept so we can cancel if needed)
     _task: Optional[asyncio.Task] = field(default=None, repr=False)
 
@@ -246,6 +247,29 @@ def _extract_pdf_text(content: bytes) -> str:
         return ""
 
 
+def _snapshot_memo_version(record: RunRecord) -> None:
+    """Capture reviewed memo versions for the UI's version selector."""
+    if record.status != "awaiting_review" or record.state.final_memo is None:
+        return
+
+    version = record.state.feedback_round + 1
+    if any(item.get("version") == version for item in record.memo_versions):
+        return
+
+    feedback_text = None
+    history_index = version - 2
+    if history_index >= 0 and history_index < len(record.state.human_feedback_history):
+        feedback_text = record.state.human_feedback_history[history_index].feedback_text
+
+    record.memo_versions.append(
+        {
+            "version": version,
+            "memo": record.state.final_memo.model_dump(mode="json"),
+            "feedbackText": feedback_text,
+        }
+    )
+
+
 # ---------------------------------------------------------------------------
 # Request / Response schemas
 # ---------------------------------------------------------------------------
@@ -258,10 +282,13 @@ class RunCreateResponse(BaseModel):
 class RunStatusResponse(BaseModel):
     run_id: str
     status: str
+    problem_statement: str
     current_turn: int
     feedback_round: int
     guardrail_passed: bool
     final_memo: Optional[dict] = None
+    memo_versions: list[dict] = Field(default_factory=list)
+    human_feedback_history: list[dict] = Field(default_factory=list)
     action_status: Optional[str] = None
     error: Optional[str] = None
 
@@ -341,15 +368,21 @@ async def get_run_status(run_id: str) -> RunStatusResponse:
     if record is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
+    _snapshot_memo_version(record)
     memo_dict = record.state.final_memo.model_dump(mode="json") if record.state.final_memo else None
 
     return RunStatusResponse(
         run_id=run_id,
         status=record.status,
+        problem_statement=record.state.problem_statement,
         current_turn=record.state.current_turn,
         feedback_round=record.state.feedback_round,
         guardrail_passed=record.state.guardrail_passed,
         final_memo=memo_dict,
+        memo_versions=record.memo_versions,
+        human_feedback_history=[
+            item.model_dump(mode="json") for item in record.state.human_feedback_history
+        ],
         action_status=record.state.action_status,
         error=record.error,
     )

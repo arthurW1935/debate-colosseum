@@ -30,3 +30,8 @@ export function updateRunStatus(runId: string, status: RunStatus): void {
     localStorage.setItem(KEY, JSON.stringify(runs));
   }
 }
+
+export function deleteRun(runId: string): void {
+  const runs = getRuns().filter(r => r.run_id !== runId);
+  localStorage.setItem(KEY, JSON.stringify(runs));
+}

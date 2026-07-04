@@ -1,136 +1,101 @@
 'use client';
-import { useState } from 'react';
 import { DecisionMemo, ExpertAnalysis, RiskItem } from '@/types';
-import { ChevronDown, ChevronUp, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
-
-const AGENT_ICON: Record<string, string> = { growth: '📈', finance: '💰', risk: '⚠️' };
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 
 const REC = {
   proceed: {
-    label: 'PROCEED',
-    textColor: 'text-emerald-400',
-    border: 'border-emerald-500/25',
-    bg: 'bg-emerald-500/8',
-    pill: 'bg-emerald-500/15 border-emerald-500/30',
+    label: 'Proceed',
+    textColor: 'text-[var(--emerald)]',
+    pill: 'bg-[var(--emerald)]/10 border-[var(--emerald)]/25',
     Icon: CheckCircle2,
   },
   'proceed-with-caution': {
-    label: 'PROCEED WITH CAUTION',
-    textColor: 'text-amber-400',
-    border: 'border-amber-500/25',
-    bg: 'bg-amber-500/8',
-    pill: 'bg-amber-500/15 border-amber-500/30',
+    label: 'Proceed with caution',
+    textColor: 'text-[var(--amber)]',
+    pill: 'bg-[var(--amber)]/10 border-[var(--amber)]/25',
     Icon: AlertTriangle,
   },
   'do-not-proceed': {
-    label: 'DO NOT PROCEED',
-    textColor: 'text-red-400',
-    border: 'border-red-500/25',
-    bg: 'bg-red-500/8',
-    pill: 'bg-red-500/15 border-red-500/30',
+    label: 'Do not proceed',
+    textColor: 'text-[var(--danger)]',
+    pill: 'bg-[var(--danger)]/10 border-[var(--danger)]/25',
     Icon: XCircle,
   },
 } as const;
 
 const SEVERITY_COLOR: Record<string, string> = {
-  low: 'text-emerald-400',
-  medium: 'text-yellow-400',
-  high: 'text-orange-400',
-  critical: 'text-red-400',
+  low: 'text-[var(--emerald)]',
+  medium: 'text-[var(--amber)]',
+  high: 'text-[var(--amber)]',
+  critical: 'text-[var(--danger)]',
 };
 
 function RiskTable({ risks }: { risks: RiskItem[] }) {
   if (!risks.length) return null;
   return (
-    <div>
-      <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
+    <section>
+      <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
         Risk Register
-      </h4>
-      <div className="rounded-lg border border-white/[0.06] overflow-hidden">
+      </h3>
+      <div className="overflow-hidden rounded-2xl border border-[var(--paper-border)]">
         <table className="w-full text-xs">
           <thead>
-            <tr className="bg-white/[0.03] text-slate-500">
-              <th className="text-left px-3 py-2 font-medium">Description</th>
-              <th className="px-3 py-2 font-medium">Severity</th>
-              <th className="px-3 py-2 font-medium">Likelihood</th>
-              <th className="text-left px-3 py-2 font-medium">Mitigation</th>
+            <tr className="bg-[var(--paper-rule)] text-[var(--paper-muted)]">
+              <th className="px-4 py-3 text-left font-semibold">Description</th>
+              <th className="px-4 py-3 font-semibold">Severity</th>
+              <th className="px-4 py-3 font-semibold">Likelihood</th>
+              <th className="px-4 py-3 text-left font-semibold">Mitigation</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-white/[0.04]">
+          <tbody className="divide-y divide-[var(--paper-border)]">
             {risks.map((r, i) => (
-              <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                <td className="px-3 py-2 text-slate-300">{r.description}</td>
-                <td className={`px-3 py-2 text-center font-medium capitalize ${SEVERITY_COLOR[r.severity]}`}>
+              <tr key={i}>
+                <td className="px-4 py-3 leading-5 text-[var(--paper-ink)]">{r.description}</td>
+                <td className={`px-4 py-3 text-center font-semibold capitalize ${SEVERITY_COLOR[r.severity]}`}>
                   {r.severity}
                 </td>
-                <td className="px-3 py-2 text-center text-slate-400 capitalize">{r.likelihood}</td>
-                <td className="px-3 py-2 text-slate-400">{r.mitigation ?? '—'}</td>
+                <td className="px-4 py-3 text-center capitalize text-[var(--paper-muted)]">{r.likelihood}</td>
+                <td className="px-4 py-3 text-[var(--paper-muted)]">{r.mitigation ?? '-'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 
 function ExpertCard({ analysis }: { analysis: ExpertAnalysis }) {
-  const [open, setOpen] = useState(false);
   const cfg = REC[analysis.recommendation];
   const Icon = cfg.Icon;
   return (
-    <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-3.5">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2.5">
-          <span className="text-lg">{AGENT_ICON[analysis.agent_role]}</span>
-          <div>
-            <p className="text-xs font-semibold text-white capitalize">{analysis.agent_role} Agent</p>
-            <div className={`flex items-center gap-1 mt-0.5 text-[10px] font-medium ${cfg.textColor}`}>
-              <Icon className="w-3 h-3" />
-              {cfg.label}
-            </div>
+    <div className="rounded-3xl border border-[var(--paper-border)] bg-[var(--paper-panel)] p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+        <p className="text-sm font-semibold capitalize text-[var(--paper-ink)]">
+            {analysis.agent_role} specialist
+          </p>
+          <div className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cfg.pill} ${cfg.textColor}`}>
+            <Icon className="h-3 w-3" />
+            {cfg.label}
           </div>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-sm font-semibold text-white">{Math.round(analysis.confidence * 100)}%</p>
-          <p className="text-[10px] text-slate-600">confidence</p>
+          <p className="text-base font-semibold text-[var(--paper-ink)]">{Math.round(analysis.confidence * 100)}%</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--paper-muted)]">confidence</p>
         </div>
       </div>
 
-      <p className="text-xs text-slate-400 mt-2.5 leading-relaxed">{analysis.summary}</p>
+      <p className="mt-4 text-sm leading-6 text-[var(--paper-muted)]">{analysis.summary}</p>
 
       {analysis.dissent_notes && (
-        <div className="mt-2 px-2.5 py-2 rounded-lg bg-amber-500/8 border border-amber-500/20">
-          <p className="text-[11px] text-amber-400">
+        <div className="mt-4 rounded-2xl border border-[var(--amber)]/25 bg-[var(--amber)]/10 px-3 py-2">
+          <p className="text-xs leading-5 text-[var(--paper-ink)]">
             <span className="font-semibold">Dissent: </span>
             {analysis.dissent_notes}
           </p>
         </div>
       )}
-
-      {open && analysis.key_assumptions.length > 0 && (
-        <div className="mt-3">
-          <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-1.5">
-            Key Assumptions
-          </p>
-          <ul className="space-y-1">
-            {analysis.key_assumptions.map((a, i) => (
-              <li key={i} className="text-[11px] text-slate-400 flex gap-1.5">
-                <span className="text-slate-700 shrink-0 mt-0.5">•</span>
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <button
-        onClick={() => setOpen(!open)}
-        className="mt-2.5 flex items-center gap-0.5 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
-      >
-        {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-        {open ? 'Collapse' : 'Show assumptions'}
-      </button>
     </div>
   );
 }
@@ -142,144 +107,136 @@ interface MemoCardProps {
 }
 
 export default function MemoCard({ memo, version, isLatest }: MemoCardProps) {
-  const [collapsed, setCollapsed] = useState(!isLatest);
   const cfg = REC[memo.recommendation];
   const Icon = cfg.Icon;
 
   return (
-    <div className={`rounded-2xl border overflow-hidden ${cfg.border} ${collapsed ? '' : cfg.bg}`}>
-      <div
-        className={`flex items-center justify-between px-5 py-4 ${!isLatest ? 'cursor-pointer hover:bg-white/[0.02]' : ''}`}
-        onClick={() => !isLatest && setCollapsed(c => !c)}
-      >
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${cfg.pill} ${cfg.textColor}`}>
-            <Icon className="w-3.5 h-3.5" />
+    <article className="memo-paper flex h-full min-h-0 flex-col overflow-hidden rounded-[34px] border border-[var(--paper-border)]">
+      <div className="h-2 bg-gradient-to-r from-[var(--accent-strong)] to-[var(--accent)]" />
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-7 sm:px-10">
+        <header className="flex flex-col gap-5 border-b border-[var(--paper-border)] pb-7 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--paper-muted)]">
+              Decision Memo
+            </p>
+            <h2 className="font-serif-memo mt-3 text-4xl font-semibold leading-tight text-[var(--paper-ink)]">
+              Strategic recommendation
+            </h2>
+            <p className="mt-3 text-sm text-[var(--paper-muted)]">
+              Version {version}{isLatest ? ' · latest' : ''} · Confidence {Math.round(memo.confidence * 100)}%
+            </p>
+          </div>
+
+          <div className={`inline-flex h-fit items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${cfg.pill} ${cfg.textColor}`}>
+            <Icon className="h-4 w-4" />
             {cfg.label}
           </div>
-          <span className="text-sm text-slate-400">
-            Confidence:{' '}
-            <strong className="text-white font-semibold">
-              {Math.round(memo.confidence * 100)}%
-            </strong>
-          </span>
-          {memo.feedback_revision_count > 0 && (
-            <span className="text-[11px] text-slate-500 italic">
-              revision #{memo.feedback_revision_count}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs px-2 py-0.5 rounded-md bg-white/[0.06] text-slate-400 font-mono">
-            v{version}
-          </span>
-          {!isLatest && (
-            collapsed
-              ? <ChevronDown className="w-4 h-4 text-slate-600" />
-              : <ChevronUp className="w-4 h-4 text-slate-600" />
-          )}
-        </div>
-      </div>
+        </header>
 
-      {!collapsed && (
-        <div className="px-5 pb-6 space-y-5 border-t border-white/[0.06] pt-5">
-          {/* Executive Summary */}
-          <div>
-            <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
-              Executive Summary
+        <div className="space-y-7 py-7">
+          <section>
+            <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+              Executive summary
             </h3>
-            <p className="text-sm text-slate-200 leading-relaxed">{memo.executive_summary}</p>
-          </div>
+            <p className="font-serif-memo text-xl leading-8 text-[var(--paper-ink)]">
+              {memo.executive_summary}
+            </p>
+          </section>
 
-          {/* Agreements & Disagreements */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/15 p-4">
-              <h4 className="text-[10px] font-semibold text-emerald-500 uppercase tracking-widest mb-2.5">
-                Key Agreements
-              </h4>
-              {memo.key_agreements.length ? (
-                <ul className="space-y-1.5">
-                  {memo.key_agreements.map((a, i) => (
-                    <li key={i} className="text-xs text-slate-300 flex gap-2">
-                      <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
-                      {a}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-slate-600">None</p>
-              )}
-            </div>
-            <div className="rounded-xl bg-red-500/5 border border-red-500/15 p-4">
-              <h4 className="text-[10px] font-semibold text-red-400 uppercase tracking-widest mb-2.5">
-                Key Disagreements
-              </h4>
-              {memo.key_disagreements.length ? (
-                <ul className="space-y-1.5">
-                  {memo.key_disagreements.map((d, i) => (
-                    <li key={i} className="text-xs text-slate-300 flex gap-2">
-                      <span className="text-red-400 shrink-0 mt-0.5">⚡</span>
-                      {d}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-xs text-slate-600">None</p>
-              )}
-            </div>
-          </div>
+          <section className="rounded-3xl border border-[var(--paper-border)] bg-[var(--paper-panel)] p-6">
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+              Recommendation
+            </h3>
+            <p className="font-serif-memo text-xl font-semibold leading-7 text-[var(--paper-ink)]">
+              {cfg.label}
+            </p>
+          </section>
 
-          {/* Arbitration */}
+          <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+                Key agreements
+              </h3>
+              <ul className="space-y-3">
+                {memo.key_agreements.length ? memo.key_agreements.map((a, i) => (
+                  <li key={i} className="flex gap-3 text-sm leading-6 text-[var(--paper-ink)]">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--emerald)]" />
+                    {a}
+                  </li>
+                )) : (
+                  <li className="text-sm text-[var(--paper-muted)]">None recorded.</li>
+                )}
+              </ul>
+            </div>
+            <div>
+              <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+                Key disagreements
+              </h3>
+              <ul className="space-y-3">
+                {memo.key_disagreements.length ? memo.key_disagreements.map((d, i) => (
+                  <li key={i} className="flex gap-3 text-sm leading-6 text-[var(--paper-ink)]">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--danger)]" />
+                    {d}
+                  </li>
+                )) : (
+                  <li className="text-sm text-[var(--paper-muted)]">None recorded.</li>
+                )}
+              </ul>
+            </div>
+          </section>
+
           {memo.arbitration_summary && (
-            <div className="rounded-xl bg-purple-500/8 border border-purple-500/20 p-4">
-              <h4 className="text-[10px] font-semibold text-purple-400 uppercase tracking-widest mb-2">
-                Arbitration Summary
-              </h4>
-              <p className="text-xs text-slate-300 leading-relaxed">{memo.arbitration_summary}</p>
-            </div>
+            <section className="rounded-3xl border border-[var(--paper-border)] bg-[var(--paper-dispute)] p-6">
+              <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+                Dispute handler summary
+              </h3>
+              <p className="font-serif-memo text-lg leading-7 text-[var(--paper-ink)]">
+                {memo.arbitration_summary}
+              </p>
+            </section>
           )}
 
-          {/* Expert Positions */}
           {memo.expert_positions.length > 0 && (
-            <div>
-              <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
-                Expert Positions
+            <section>
+              <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+                Specialist positions
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                 {memo.expert_positions.map((p, i) => (
                   <ExpertCard key={i} analysis={p} />
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Risk Register */}
           <RiskTable risks={memo.risk_register} />
 
-          {/* Next Steps */}
           {memo.next_steps.length > 0 && (
-            <div>
-              <h4 className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-2.5">
-                Next Steps
-              </h4>
-              <ol className="space-y-2">
+            <section>
+              <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--paper-muted)]">
+                Next steps
+              </h3>
+              <ol className="space-y-3">
                 {memo.next_steps.map((s, i) => (
-                  <li key={i} className="text-xs text-slate-300 flex gap-2.5">
-                    <span className="text-indigo-400 font-mono font-semibold shrink-0 w-4">
-                      {i + 1}.
+                  <li key={i} className="flex gap-4 text-sm leading-6 text-[var(--paper-ink)]">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--paper-ink)]">
+                      {i + 1}
                     </span>
-                    {s}
+                    <span className="pt-0.5">{s}</span>
                   </li>
                 ))}
               </ol>
-            </div>
+            </section>
           )}
 
           {memo.generated_at && (
-            <p className="text-[10px] text-slate-700 pt-1">Generated {memo.generated_at}</p>
+            <p className="border-t border-[var(--paper-border)] pt-5 text-xs text-[var(--paper-muted)]">
+              Generated {memo.generated_at}
+            </p>
           )}
         </div>
-      )}
-    </div>
+      </div>
+    </article>
   );
 }
