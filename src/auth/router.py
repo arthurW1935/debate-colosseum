@@ -5,6 +5,7 @@ from src.config import settings
 from src.auth.google_oauth import get_google_auth_url, exchange_code_for_tokens, get_google_user_info
 from src.auth.jwt_handler import create_access_token
 from src.auth.dependencies import get_current_user
+from src.db.user_store import upsert_user
 
 auth_router = APIRouter()
 
@@ -27,13 +28,16 @@ async def google_callback(code: str):
             
         user_info = await get_google_user_info(access_token)
         
-        # In a full system, you'd upsert this user into your DB here.
-        # For now, we just encode their Google info into the JWT.
         google_id = user_info.get("sub")
         email = user_info.get("email")
         name = user_info.get("name", "Unknown User")
+        avatar_url = user_info.get("picture")
         
-        jwt_token = create_access_token(user_id=google_id, email=email, name=name)
+        # Upsert user into database
+        db_user = upsert_user(email=email, name=name, avatar_url=avatar_url, google_id=google_id)
+        
+        # Use internal DB ID for JWT payload
+        jwt_token = create_access_token(user_id=str(db_user.id), email=email, name=name)
         
         # Redirect to frontend callback page with the token
         frontend_callback = f"{settings.FRONTEND_URL}/auth/callback?token={urllib.parse.quote(jwt_token)}"

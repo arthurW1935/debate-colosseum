@@ -366,9 +366,19 @@ async def create_run(
         run_id=run_id,
     )
 
-    # Use a dummy user_id for now until auth is integrated
-    user_id = "temp_user"
-    store_create_run(run_id, user_id, problem_statement, context_docs, state)
+    # Use the real user_id extracted from the JWT token
+    user_id = user.get("id") or user.get("sub") or "temp_user"
+    
+    # D2: Record state before execution. (In Phase 1, memory persistence)
+    # This also persists to Supabase since we've hooked it up.
+    store_create_run(
+        run_id=run_id,
+        user_id=user_id,
+        problem_statement=problem_statement,
+        context_docs=context_docs,
+        state=state,
+    )
+
     record = get_run(run_id)
 
     task = asyncio.create_task(_run_graph(run_id, state))
@@ -405,6 +415,16 @@ async def get_run_status(run_id: str, user: dict = Depends(get_current_user)) ->
         action_status=record.state.action_status,
         error=record.error,
     )
+
+@app.get("/runs")
+async def get_user_runs(user: dict = Depends(get_current_user)):
+    """Fetch all debate runs for the authenticated user"""
+    user_id = user.get("id") or user.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found in token")
+        
+    runs = list_user_runs(user_id)
+    return {"runs": runs}
 
 
 @app.post("/runs/{run_id}/review", response_model=ReviewResponse)
