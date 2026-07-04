@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = 15
     RATE_LIMIT_RUNS_PER_HOUR: int = 5
 
+    # Supabase
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_ANON_KEY: Optional[str] = None
+    SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
+
     # External action
     SLACK_WEBHOOK_URL: Optional[str] = None
 
