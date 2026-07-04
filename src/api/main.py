@@ -20,13 +20,20 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 import httpx
-from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from src.middleware.rate_limiter import RateLimitMiddleware
 
 from src.config import settings
 from src.hitl.review import handle_review
 from src.schemas import DecisionMemo, GraphState
+from src.auth.session_router import session_router
+from src.auth.session_manager import get_session_manager
+from src.auth.router import auth_router
+from src.auth.dependencies import get_optional_user
+from fastapi import Request
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +45,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RunRecord:
     state: GraphState
+    user_id: Optional[str] = None
     status: str = "running"   # running | awaiting_review | completed | error
     error: Optional[str] = None
     # Background asyncio task reference (kept so we can cancel if needed)
@@ -61,7 +69,24 @@ async def lifespan(app: FastAPI):
 
     _checkpointer = MemorySaver()
     logger.info("LangGraph checkpointer initialised (MemorySaver)")
+    
+    async def cleanup_loop():
+        manager = get_session_manager()
+        while True:
+            try:
+                await asyncio.sleep(settings.SESSION_CLEANUP_INTERVAL_MINUTES * 60)
+                count = await asyncio.to_thread(manager.cleanup_expired)
+                if count > 0:
+                    logger.info("Cleaned up %d expired sessions", count)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.error("Error in session cleanup task: %s", exc)
+                
+    cleanup_task = asyncio.create_task(cleanup_loop())
+    
     yield
+    cleanup_task.cancel()
     logger.info("Shutting down — checkpointer released")
 
 
@@ -73,6 +98,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
+
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    return await call_next(request)
+
+app.include_router(session_router, prefix="/api/sessions", tags=["sessions"])
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
+
+@app.middleware("http")
+async def session_refresh_middleware(request: Request, call_next):
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):]
+        manager = get_session_manager()
+        try:
+            await asyncio.to_thread(manager.refresh_session, token)
+        except Exception as exc:
+            logger.warning("Failed to refresh session: %s", exc)
+            
+    response = await call_next(request)
+    return response
+
+app.include_router(session_router, prefix='/auth', tags=['sessions'])
 
 
 # ---------------------------------------------------------------------------
@@ -287,6 +336,7 @@ async def create_run(
     background_tasks: BackgroundTasks,
     problem_statement: str = Form(...),
     files: Optional[list[UploadFile]] = File(default=None),
+    user: Optional[dict] = Depends(get_optional_user),
 ) -> RunCreateResponse:
     """D1: Start a new debate run.
 
@@ -317,7 +367,8 @@ async def create_run(
         run_id=run_id,
     )
 
-    record = RunRecord(state=state)
+    user_id = user.get("id") if user else None
+    record = RunRecord(state=state, user_id=user_id)
     _runs[run_id] = record
 
     task = asyncio.create_task(_run_graph(run_id, state))
@@ -328,7 +379,7 @@ async def create_run(
 
 
 @app.get("/runs/{run_id}/status", response_model=RunStatusResponse)
-async def get_run_status(run_id: str) -> RunStatusResponse:
+async def get_run_status(run_id: str, user: Optional[dict] = Depends(get_optional_user)) -> RunStatusResponse:
     """D1: Poll current run state.
 
     status values:
@@ -360,6 +411,7 @@ async def review_run(
     run_id: str,
     body: ReviewRequest,
     background_tasks: BackgroundTasks,
+    user: Optional[dict] = Depends(get_optional_user),
 ) -> ReviewResponse:
     """D3: Submit a human review decision.
 
