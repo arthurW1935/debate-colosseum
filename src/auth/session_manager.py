@@ -210,7 +210,7 @@ def get_session_manager() -> BaseSessionManager:
         
     # Attempt to initialize Supabase
     supabase_url = getattr(settings, "SUPABASE_URL", None)
-    supabase_key = getattr(settings, "SUPABASE_KEY", None)
+    supabase_key = getattr(settings, "SUPABASE_SERVICE_ROLE_KEY", None) or getattr(settings, "SUPABASE_ANON_KEY", None)
     
     if supabase_url and supabase_key:
         try:
