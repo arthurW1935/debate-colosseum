@@ -6,6 +6,10 @@ on:
       - production
   workflow_dispatch:
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -102,6 +106,14 @@ jobs:
           fi
 
           ################################################
+          # Stop services before touching venv/build
+          # (avoid racing an in-place package install
+          # against a live process holding the old venv open)
+          ################################################
+          sudo systemctl stop debate-backend || true
+          sudo systemctl stop debate-frontend || true
+
+          ################################################
           # Python virtual environment
           ################################################
           if [ ! -f ".venv/bin/activate" ]; then
@@ -114,6 +126,12 @@ jobs:
 
           pip install --upgrade pip
           pip install -r requirements.txt
+
+          # Sanity check before we ever try to start the app on this venv
+          .venv/bin/python -c "import langchain" || {
+            echo "langchain failed to import after install — aborting deploy"
+            exit 1
+          }
 
           ################################################
           # Build frontend
@@ -159,10 +177,11 @@ jobs:
           sudo nginx -t
 
           ################################################
-          # Restart application
+          # Start application
+          # (fresh start, not restart — already stopped above)
           ################################################
-          sudo systemctl restart debate-backend
-          sudo systemctl restart debate-frontend
+          sudo systemctl start debate-backend
+          sudo systemctl start debate-frontend
 
           ################################################
           # Reload nginx
