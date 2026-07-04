@@ -17,49 +17,50 @@ jobs:
 
       - name: Configure SSH
         run: |
-         set -ex
-         
-         mkdir -p ~/.ssh
-         
-         cat <<'EOF' > ~/.ssh/deploy_key 
-         ${{ secrets.EC2_SSH_KEY }}
-         EOF
-         
-         chmod 600 ~/.ssh/deploy_key
-         
-         ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
-         
-         ssh-keyscan -v -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+          set -euo pipefail
 
+          mkdir -p ~/.ssh
+
+          cat <<'EOF' > ~/.ssh/deploy_key
+          ${{ secrets.EC2_SSH_KEY }}
+          EOF
+
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
+
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy application
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<'ENDSSH'
+          ssh -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<'ENDSSH'
 
-          set -e
+          set -euo pipefail
 
           APP_DIR="$HOME/debate-colosseum"
 
-          ####################################
-          # Clone repository if first deploy
-          ####################################
+          ################################################
+          # Clone repository (first deployment only)
+          ################################################
           if [ ! -d "$APP_DIR/.git" ]; then
             echo "==> Cloning repository..."
             git clone https://github.com/neeldholiya04/debate_colosseum.git "$APP_DIR"
           fi
 
-          ####################################
-          # Pull latest code
-          ####################################
           cd "$APP_DIR"
 
+          ################################################
+          # Pull latest code
+          ################################################
           git fetch origin production
           git reset --hard origin/production
 
-          ####################################
-          # Backend .env
-          ####################################
-          cat > .env <<'EOF'
+          ################################################
+          # Backend environment
+          ################################################
+          cat > .env <<EOF
           LLM_PROVIDER=${{ secrets.LLM_PROVIDER }}
           LLM_MODEL=${{ secrets.LLM_MODEL }}
           OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
@@ -73,27 +74,36 @@ jobs:
           SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
           EOF
 
-          ####################################
-          # Frontend .env
-          ####################################
+          ################################################
+          # Frontend environment
+          ################################################
           mkdir -p frontend-next
 
-          cat > frontend-next/.env.local <<'EOF'
+          cat > frontend-next/.env.local <<EOF
           NEXT_PUBLIC_API_BASE=${{ secrets.NEXT_PUBLIC_API_BASE }}/api
           EOF
 
-          ####################################
-          # Python environment
-          ####################################
-
-          # Ensure python3-venv is available
-          if ! python3 -m venv --help > /dev/null 2>&1; then
-            echo "==> Installing python3-venv..."
+          ################################################
+          # Install required packages (if missing)
+          ################################################
+          if ! command -v nginx >/dev/null; then
             sudo apt-get update -qq
-            sudo apt-get install -y python3-venv
+            sudo apt-get install -y nginx
           fi
 
-          # Recreate venv if activate script is missing (broken venv)
+          if ! command -v python3 >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y python3 python3-venv python3-pip
+          fi
+
+          if ! command -v node >/dev/null; then
+            echo "Node.js is not installed."
+            exit 1
+          fi
+
+          ################################################
+          # Python virtual environment
+          ################################################
           if [ ! -f ".venv/bin/activate" ]; then
             echo "==> Creating virtual environment..."
             rm -rf .venv
@@ -105,9 +115,9 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-          ####################################
-          # Frontend
-          ####################################
+          ################################################
+          # Build frontend
+          ################################################
           cd frontend-next
 
           npm ci
@@ -115,9 +125,9 @@ jobs:
 
           cd ..
 
-          ####################################
+          ################################################
           # Install systemd services
-          ####################################
+          ################################################
           sudo cp deploy/debate-backend.service /etc/systemd/system/
           sudo cp deploy/debate-frontend.service /etc/systemd/system/
 
@@ -126,58 +136,85 @@ jobs:
           sudo systemctl enable debate-backend
           sudo systemctl enable debate-frontend
 
-          ####################################
-          # Install nginx config
-          ####################################
-          sudo cp deploy/nginx.conf /etc/nginx/sites-available/debate-colosseum
+          ################################################
+          # Install nginx config ONLY if it doesn't exist
+          ################################################
+          if [ ! -f /etc/nginx/sites-available/debate-colosseum ]; then
+              echo "==> Installing nginx configuration..."
 
-          sudo ln -sf \
-            /etc/nginx/sites-available/debate-colosseum \
-            /etc/nginx/sites-enabled/debate-colosseum
+              sudo cp deploy/nginx.conf /etc/nginx/sites-available/debate-colosseum
 
-          sudo rm -f /etc/nginx/sites-enabled/default
+              sudo ln -sf \
+                  /etc/nginx/sites-available/debate-colosseum \
+                  /etc/nginx/sites-enabled/debate-colosseum
 
+              sudo rm -f /etc/nginx/sites-enabled/default
+          else
+              echo "==> Existing nginx configuration found. Skipping."
+          fi
+
+          ################################################
+          # Validate nginx
+          ################################################
           sudo nginx -t
-          sudo systemctl reload nginx
 
-          ####################################
-          # Restart services
-          ####################################
+          ################################################
+          # Restart application
+          ################################################
           sudo systemctl restart debate-backend
           sudo systemctl restart debate-frontend
+
+          ################################################
+          # Reload nginx
+          ################################################
+          sudo systemctl reload nginx
 
           ENDSSH
 
       - name: Health Check Frontend
         run: |
           for i in {1..12}; do
-            STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://${{ secrets.EC2_HOST }}/)
+
+            STATUS=$(curl -k \
+              -o /dev/null \
+              -s \
+              -w "%{http_code}" \
+              https://debate-colosseum.neeldholiya.me/)
 
             if [ "$STATUS" = "200" ]; then
               echo "Frontend healthy"
               exit 0
             fi
 
-            echo "Attempt $i: got $STATUS, retrying in 5s..."
+            echo "Attempt $i: got $STATUS"
+
             sleep 5
+
           done
 
-          echo "Frontend health check failed after 60s"
+          echo "Frontend health check failed"
           exit 1
 
       - name: Health Check Backend
         run: |
           for i in {1..12}; do
-            STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://${{ secrets.EC2_HOST }}/docs)
+
+            STATUS=$(curl -k \
+              -o /dev/null \
+              -s \
+              -w "%{http_code}" \
+              https://debate-colosseum.neeldholiya.me/docs)
 
             if [ "$STATUS" = "200" ]; then
               echo "Backend healthy"
               exit 0
             fi
 
-            echo "Attempt $i: got $STATUS, retrying in 5s..."
+            echo "Attempt $i: got $STATUS"
+
             sleep 5
+
           done
 
-          echo "Backend health check failed after 60s"
+          echo "Backend health check failed"
           exit 1
