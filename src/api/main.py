@@ -16,13 +16,12 @@ import io
 import logging
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 import httpx
 from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.middleware.rate_limiter import RateLimitMiddleware
 
@@ -294,6 +293,26 @@ def _extract_pdf_text(content: bytes) -> str:
         return ""
 
 
+def _memo_versions_for_record(record: RunRecord) -> list[dict]:
+    """Expose the current persisted memo in the version shape expected by the UI."""
+    if record.state.final_memo is None:
+        return []
+
+    version = record.state.feedback_round + 1
+    feedback_text = None
+    history_index = version - 2
+    if 0 <= history_index < len(record.state.human_feedback_history):
+        feedback_text = record.state.human_feedback_history[history_index].feedback_text
+
+    return [
+        {
+            "version": version,
+            "memo": record.state.final_memo.model_dump(mode="json"),
+            "feedbackText": feedback_text,
+        }
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Request / Response schemas
 # ---------------------------------------------------------------------------
@@ -306,10 +325,13 @@ class RunCreateResponse(BaseModel):
 class RunStatusResponse(BaseModel):
     run_id: str
     status: str
+    problem_statement: str
     current_turn: int
     feedback_round: int
     guardrail_passed: bool
     final_memo: Optional[dict] = None
+    memo_versions: list[dict] = Field(default_factory=list)
+    human_feedback_history: list[dict] = Field(default_factory=list)
     action_status: Optional[str] = None
     error: Optional[str] = None
 
@@ -410,10 +432,15 @@ async def get_run_status(run_id: str, user: dict = Depends(get_current_user)) ->
     return RunStatusResponse(
         run_id=run_id,
         status=record.status,
+        problem_statement=record.state.problem_statement,
         current_turn=record.state.current_turn,
         feedback_round=record.state.feedback_round,
         guardrail_passed=record.state.guardrail_passed,
         final_memo=memo_dict,
+        memo_versions=_memo_versions_for_record(record),
+        human_feedback_history=[
+            item.model_dump(mode="json") for item in record.state.human_feedback_history
+        ],
         action_status=record.state.action_status,
         error=record.error,
     )
@@ -490,11 +517,3 @@ async def review_run(
         status="running",
         message=f"Feedback submitted (round {record.state.feedback_round}) — re-processing.",
     )
-
-@app.get("/runs")
-async def list_runs(user_id: Optional[str] = None):
-    # Wait for Auth branch to provide user_id properly, for now use optional query param
-    uid = user_id or "temp_user"
-    runs = list_user_runs(uid)
-    return {"runs": runs}
-

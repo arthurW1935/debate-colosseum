@@ -38,10 +38,13 @@ export interface DecisionMemo {
 export interface RunStatusResponse {
   run_id: string;
   status: RunStatus;
+  problem_statement?: string;
   current_turn: number;
   feedback_round: number;
   guardrail_passed: boolean;
   final_memo?: DecisionMemo;
+  memo_versions?: MemoVersion[];
+  human_feedback_history?: HumanFeedbackEntry[];
   action_status?: string;
   error?: string;
 }
@@ -57,4 +60,12 @@ export interface MemoVersion {
   memo: DecisionMemo;
   version: number;
   feedbackText?: string;
+}
+
+export interface HumanFeedbackEntry {
+  feedback_text: string;
+  feedback_round: number;
+  resolved_by: 'synthesizer_only' | 'targeted_agent' | 'abandoned';
+  target_agent_if_any?: AgentRole;
+  contradiction_detected: boolean;
 }

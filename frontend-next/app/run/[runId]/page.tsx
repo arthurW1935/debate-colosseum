@@ -7,21 +7,23 @@ import { RunStatusResponse, MemoVersion } from '@/types';
 import Sidebar from '@/components/Sidebar';
 import DebateFeed from '@/components/DebateFeed';
 import QueryBox from '@/components/QueryBox';
+import ThemeToggle from '@/components/ThemeToggle';
+import { useThemeMode } from '@/components/useThemeMode';
 
 const POLL_MS = 2000;
 
 const STATUS_LABEL: Record<string, string> = {
   running: 'Running',
-  awaiting_review: 'Awaiting Review',
+  awaiting_review: 'Memo ready for refinement',
   completed: 'Completed',
   error: 'Error',
 };
 
 const STATUS_PULSE: Record<string, string> = {
-  running: 'bg-blue-400 animate-pulse',
-  awaiting_review: 'bg-amber-400 animate-pulse',
-  completed: 'bg-emerald-500',
-  error: 'bg-red-500',
+  running: 'bg-[var(--cobalt)] animate-pulse',
+  awaiting_review: 'bg-[var(--amber)] animate-pulse',
+  completed: 'bg-[var(--emerald)]',
+  error: 'bg-[var(--danger)]',
 };
 
 export default function RunPage() {
@@ -35,10 +37,11 @@ export default function RunPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { theme, toggleTheme } = useThemeMode();
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const runs = getRuns();
@@ -50,11 +53,14 @@ export default function RunPage() {
     try {
       const data: RunStatusResponse = await getRunStatus(runId);
       setStatusData(data);
+      if (data.problem_statement) setProblemStatement(data.problem_statement);
 
       // Only snapshot a memo when the graph has fully paused for review.
       // During re-processing (status=running), the backend still holds the
       // previous final_memo — capturing it then would show the old memo as v2.
-      if (data.final_memo && data.status === 'awaiting_review') {
+      if (data.memo_versions?.length) {
+        setMemoVersions(data.memo_versions);
+      } else if (data.final_memo && data.status === 'awaiting_review') {
         const version = data.feedback_round + 1;
         setMemoVersions(prev => {
           const alreadyHas = prev.some(mv => mv.version === version);
@@ -100,11 +106,6 @@ export default function RunPage() {
     }
   }, [statusData?.status]);
 
-  // Auto-scroll to bottom when new content arrives
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [memoVersions.length, statusData?.status]);
-
   const handleAction = useCallback(
     (decision: 'approved' | 'feedback' | 'abandoned', feedbackText?: string) => {
       if (decision === 'feedback' && feedbackText) {
@@ -130,20 +131,19 @@ export default function RunPage() {
 
   if (notFound) {
     return (
-      <div className="flex h-screen bg-[#0a0a0f]">
+      <div data-theme={theme} className="executive-shell flex h-screen">
         <Sidebar />
-        <div className="flex-1 flex flex-col items-center justify-center gap-3">
-          <p className="text-2xl">⚠️</p>
-          <p className="text-sm text-slate-300 font-medium">Run not found</p>
-          <p className="text-xs text-slate-500 text-center max-w-xs">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--text-primary)]">
+          <p className="text-sm font-semibold">Run not found</p>
+          <p className="max-w-xs text-center text-xs text-[var(--text-secondary)]">
             The backend was restarted and its in-memory store was cleared.
             This run no longer exists on the server.
           </p>
           <button
             onClick={() => router.push('/')}
-            className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 underline"
+            className="mt-2 text-xs font-semibold text-[var(--accent-strong)] underline"
           >
-            ← Start a new debate
+            Start a new debate
           </button>
         </div>
       </div>
@@ -152,15 +152,15 @@ export default function RunPage() {
 
   if (fetchError) {
     return (
-      <div className="flex h-screen bg-[#0a0a0f]">
+      <div data-theme={theme} className="executive-shell flex h-screen">
         <Sidebar />
-        <div className="flex-1 flex flex-col items-center justify-center gap-4">
-          <p className="text-sm text-red-400">Could not reach backend: {fetchError}</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4">
+          <p className="text-sm text-[var(--danger)]">Could not reach backend: {fetchError}</p>
           <button
             onClick={() => router.push('/')}
-            className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+            className="text-xs font-semibold text-[var(--accent-strong)] underline"
           >
-            ← Start a new debate
+            Start a new debate
           </button>
         </div>
       </div>
@@ -168,45 +168,44 @@ export default function RunPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#0a0a0f] text-white overflow-hidden">
-      <Sidebar />
+    <div data-theme={theme} className="executive-shell flex h-screen overflow-hidden text-[var(--text-primary)]">
+      <Sidebar collapsed={!sidebarOpen} onToggle={() => setSidebarOpen(open => !open)} />
 
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Top bar */}
-        <div className="px-6 py-3 border-b border-white/[0.05] flex items-center gap-3 shrink-0 bg-[#0d0d14]">
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--surface)]/75 px-6 py-4 backdrop-blur">
           <div
-            className={`w-2 h-2 rounded-full shrink-0 ${
+            className={`h-2.5 w-2.5 shrink-0 rounded-full ${
               STATUS_PULSE[statusData?.status ?? ''] ?? 'bg-slate-700'
             }`}
           />
-          <span className="text-xs text-slate-400">
+          <span className="text-sm font-medium text-[var(--text-secondary)]">
             {STATUS_LABEL[statusData?.status ?? ''] ?? 'Loading…'}
             {statusData?.feedback_round
-              ? ` · feedback round ${statusData.feedback_round}`
+              ? ` · refinement ${statusData.feedback_round}`
               : ''}
           </span>
           {memoVersions.length > 0 && (
-            <span className="text-xs text-slate-600 ml-1">
-              · {memoVersions.length} version{memoVersions.length > 1 ? 's' : ''}
+            <span className="ml-1 rounded-full border border-[var(--border)] px-2.5 py-1 text-xs font-semibold text-[var(--text-secondary)]">
+              {memoVersions.length} memo version{memoVersions.length > 1 ? 's' : ''}
             </span>
           )}
           {statusData?.status === 'running' && (
-            <span className="text-xs text-slate-500 font-mono">
+            <span className="font-mono text-xs text-[var(--text-tertiary)]">
               {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
               {elapsed > 60 && (
-                <span className="text-slate-600 ml-1.5 font-sans">
+                <span className="ml-1.5 font-sans">
                   · ~{Math.ceil((180 - elapsed) / 60)}min left
                 </span>
               )}
             </span>
           )}
-          <span className="ml-auto font-mono text-[10px] text-slate-700 select-all">
+          <span className="ml-auto select-all font-mono text-[10px] text-[var(--text-tertiary)]">
             {runId.slice(0, 8)}…
           </span>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
 
-        {/* Scrollable feed */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5">
+        <div className="relative flex-1 overflow-hidden px-4 py-6 sm:px-6">
           {statusData ? (
             <DebateFeed
               status={statusData}
@@ -214,40 +213,34 @@ export default function RunPage() {
               problemStatement={problemStatement}
             />
           ) : (
-            <div className="flex items-center justify-center h-32 gap-2 text-slate-500 text-sm">
-              <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <div className="flex h-32 items-center justify-center gap-2 text-sm text-[var(--text-secondary)]">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
               Loading run…
             </div>
           )}
-          <div ref={bottomRef} />
         </div>
 
-        {/* Query box / HITL */}
-        {statusData && statusData.status === 'running' && (
-          <div className="px-4 sm:px-6 pb-4 pt-2 shrink-0 border-t border-white/[0.04] bg-[#0d0d14]">
-            <QueryBox runId={runId} status={statusData.status} onAction={handleAction} />
-          </div>
-        )}
-
-        {statusData?.status === 'awaiting_review' && (
-          <div className="px-4 sm:px-6 pb-4 pt-2 shrink-0 border-t border-white/[0.04] bg-[#0d0d14]">
-            <QueryBox runId={runId} status={statusData.status} onAction={handleAction} />
+        {(statusData?.status === 'running' || statusData?.status === 'awaiting_review') && (
+          <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-[var(--app-bg)] via-[var(--app-bg)]/80 to-transparent px-4 pb-4 pt-8 sm:px-8">
+            <div className="pointer-events-auto mx-auto max-w-3xl">
+              <QueryBox runId={runId} status={statusData.status} onAction={handleAction} />
+            </div>
           </div>
         )}
 
         {statusData?.status === 'completed' && (
-          <div className="px-6 pb-4 pt-2 shrink-0 border-t border-white/[0.04] text-center">
-            <p className="text-xs text-slate-700">Debate complete</p>
+          <div className="shrink-0 border-t border-[var(--border)] px-6 pb-4 pt-2 text-center">
+            <p className="text-xs text-[var(--text-tertiary)]">Debate complete</p>
           </div>
         )}
 
         {statusData?.status === 'error' && (
-          <div className="px-6 pb-4 pt-2 shrink-0 border-t border-white/[0.04] text-center">
+          <div className="shrink-0 border-t border-[var(--border)] px-6 pb-4 pt-2 text-center">
             <button
               onClick={() => window.location.href = '/'}
-              className="text-xs text-indigo-400 hover:text-indigo-300 underline"
+              className="text-xs font-semibold text-[var(--accent-strong)] underline"
             >
-              ← Start a new debate
+              Start a new debate
             </button>
           </div>
         )}
