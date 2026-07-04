@@ -50,7 +50,24 @@ async def lifespan(app: FastAPI):
 
     _checkpointer = MemorySaver()
     logger.info("LangGraph checkpointer initialised (MemorySaver)")
+
+    async def cleanup_loop():
+        manager = get_session_manager()
+        while True:
+            try:
+                await asyncio.sleep(settings.SESSION_CLEANUP_INTERVAL_MINUTES * 60)
+                count = await asyncio.to_thread(manager.cleanup_expired)
+                if count > 0:
+                    logger.info("Cleaned up %d expired sessions", count)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.error("Error in session cleanup task: %s", exc)
+
+    cleanup_task = asyncio.create_task(cleanup_loop())
+
     yield
+    cleanup_task.cancel()
     logger.info("Shutting down — checkpointer released")
 
 
@@ -64,10 +81,33 @@ app.add_middleware(
 )
 from src.auth.router import auth_router
 from src.auth.dependencies import get_current_user
+from src.auth.session_router import session_router
+from src.auth.session_manager import get_session_manager
+from fastapi import Request
+import asyncio
 
 app.add_middleware(RateLimitMiddleware)
 
+@app.middleware("http")
+async def session_middleware(request: Request, call_next):
+    return await call_next(request)
+
+@app.middleware("http")
+async def session_refresh_middleware(request: Request, call_next):
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):]
+        manager = get_session_manager()
+        try:
+            await asyncio.to_thread(manager.refresh_session, token)
+        except Exception as exc:
+            logger.warning("Failed to refresh session: %s", exc)
+            
+    response = await call_next(request)
+    return response
+
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
+app.include_router(session_router, prefix="/api/sessions", tags=["sessions"])
 
 # ---------------------------------------------------------------------------
 # Background graph runner

@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: Optional[str] = None
     SUPABASE_SERVICE_ROLE_KEY: Optional[str] = None
 
+    # Session Management
+    SESSION_TTL_HOURS: int = 168
+    SESSION_REFRESH_INTERVAL_MINUTES: int = 30
+    SESSION_CLEANUP_INTERVAL_MINUTES: int = 60
+
     # External action
     SLACK_WEBHOOK_URL: Optional[str] = None
 
