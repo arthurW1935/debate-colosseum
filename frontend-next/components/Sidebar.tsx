@@ -2,8 +2,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { deleteRun, getRuns } from '@/lib/storage';
+import { deleteRun, getRuns, setRuns as cacheRuns } from '@/lib/storage';
+import { fetchUserRuns } from '@/lib/runs-api';
 import { StoredRun } from '@/types';
+import UserMenu from './UserMenu';
 import { MessageSquare, PanelLeftClose, PanelLeftOpen, Plus, Sparkles, Trash2 } from 'lucide-react';
 
 const STATUS_DOT: Record<string, string> = {
@@ -22,18 +24,32 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   const params = useParams();
   const router = useRouter();
   const activeRunId = params?.runId as string | undefined;
-  const [runs, setRuns] = useState<StoredRun[]>([]);
+  const [runs, setRuns] = useState<StoredRun[]>(() => getRuns());
 
   useEffect(() => {
-    setRuns(getRuns());
-    const id = setInterval(() => setRuns(getRuns()), 3000);
+    const loadRuns = async () => {
+      const cachedRuns = getRuns();
+      if (cachedRuns.length) setRuns(cachedRuns);
+
+      try {
+        const apiRuns = await fetchUserRuns();
+        cacheRuns(apiRuns);
+        setRuns(apiRuns);
+      } catch (e) {
+        console.warn('Run history API unavailable, falling back to local cache', e);
+        setRuns(cachedRuns);
+      }
+    };
+
+    loadRuns();
+    const id = setInterval(loadRuns, 5000);
     return () => clearInterval(id);
   }, []);
 
   const removeRun = (runId: string) => {
     deleteRun(runId);
     setRuns(getRuns());
-    if (activeRunId === runId) router.push('/');
+    if (activeRunId === runId) router.push('/app');
   };
 
   if (collapsed) {
@@ -49,12 +65,15 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         </button>
         <button
           type="button"
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/app')}
           className="mt-8 flex h-10 w-10 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] transition hover:-translate-y-0.5"
           aria-label="New debate"
         >
           <Plus className="h-4 w-4" />
         </button>
+        <div className="mt-auto w-full">
+          <UserMenu compact />
+        </div>
       </aside>
     );
   }
@@ -86,7 +105,7 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
 
       <div className="p-3">
         <button
-          onClick={() => router.push('/')}
+          onClick={() => router.push('/app')}
           className="flex w-full items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)] shadow-sm transition hover:-translate-y-0.5"
         >
           <Plus className="h-4 w-4" />
@@ -141,6 +160,10 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             </button>
           </div>
         ))}
+      </div>
+
+      <div className="p-3">
+        <UserMenu />
       </div>
     </aside>
   );

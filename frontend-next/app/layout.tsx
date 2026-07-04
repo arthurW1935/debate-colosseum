@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import { Source_Serif_4 } from 'next/font/google';
+import SessionManager from '@/components/SessionManager';
 import './globals.css';
 
 const sourceSerif = Source_Serif_4({
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${GeistSans.className} ${GeistSans.variable} ${sourceSerif.variable} bg-[var(--app-bg)] text-[var(--text-primary)] antialiased`}>
+        <SessionManager />
         {children}
       </body>
     </html>

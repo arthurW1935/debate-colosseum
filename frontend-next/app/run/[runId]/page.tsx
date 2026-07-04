@@ -3,7 +3,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getRunStatus, RunNotFoundError } from '@/lib/api';
 import { getRuns, updateRunStatus } from '@/lib/storage';
+import { isLoggedIn } from '@/lib/auth';
 import { RunStatusResponse, MemoVersion } from '@/types';
+import AuthGuard from '@/components/AuthGuard';
 import Sidebar from '@/components/Sidebar';
 import DebateFeed from '@/components/DebateFeed';
 import QueryBox from '@/components/QueryBox';
@@ -44,12 +46,14 @@ export default function RunPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (!isLoggedIn()) return;
     const runs = getRuns();
     const run = runs.find(r => r.run_id === runId);
     if (run) setProblemStatement(run.problem_statement);
   }, [runId]);
 
   const poll = useCallback(async () => {
+    if (!isLoggedIn()) return;
     try {
       const data: RunStatusResponse = await getRunStatus(runId);
       setStatusData(data);
@@ -84,6 +88,7 @@ export default function RunPage() {
   }, [runId]);
 
   useEffect(() => {
+    if (!isLoggedIn()) return;
     poll();
     pollRef.current = setInterval(poll, POLL_MS);
     // Elapsed timer — ticks every second while running
@@ -131,44 +136,49 @@ export default function RunPage() {
 
   if (notFound) {
     return (
-      <div data-theme={theme} className="executive-shell flex h-screen">
-        <Sidebar />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--text-primary)]">
-          <p className="text-sm font-semibold">Run not found</p>
-          <p className="max-w-xs text-center text-xs text-[var(--text-secondary)]">
-            The backend was restarted and its in-memory store was cleared.
-            This run no longer exists on the server.
-          </p>
-          <button
-            onClick={() => router.push('/')}
-            className="mt-2 text-xs font-semibold text-[var(--accent-strong)] underline"
-          >
-            Start a new debate
-          </button>
+      <AuthGuard>
+        <div data-theme={theme} className="executive-shell flex h-screen">
+          <Sidebar />
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--text-primary)]">
+            <p className="text-sm font-semibold">Run not found</p>
+            <p className="max-w-xs text-center text-xs text-[var(--text-secondary)]">
+              The backend was restarted and its in-memory store was cleared.
+              This run no longer exists on the server.
+            </p>
+            <button
+              onClick={() => router.push('/app')}
+              className="mt-2 text-xs font-semibold text-[var(--accent-strong)] underline"
+            >
+              Start a new debate
+            </button>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   if (fetchError) {
     return (
-      <div data-theme={theme} className="executive-shell flex h-screen">
-        <Sidebar />
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <p className="text-sm text-[var(--danger)]">Could not reach backend: {fetchError}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="text-xs font-semibold text-[var(--accent-strong)] underline"
-          >
-            Start a new debate
-          </button>
+      <AuthGuard>
+        <div data-theme={theme} className="executive-shell flex h-screen">
+          <Sidebar />
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            <p className="text-sm text-[var(--danger)]">Could not reach backend: {fetchError}</p>
+            <button
+              onClick={() => router.push('/app')}
+              className="text-xs font-semibold text-[var(--accent-strong)] underline"
+            >
+              Start a new debate
+            </button>
+          </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   return (
-    <div data-theme={theme} className="executive-shell flex h-screen overflow-hidden text-[var(--text-primary)]">
+    <AuthGuard>
+      <div data-theme={theme} className="executive-shell flex h-screen overflow-hidden text-[var(--text-primary)]">
       <Sidebar collapsed={!sidebarOpen} onToggle={() => setSidebarOpen(open => !open)} />
 
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -237,7 +247,7 @@ export default function RunPage() {
         {statusData?.status === 'error' && (
           <div className="shrink-0 border-t border-[var(--border)] px-6 pb-4 pt-2 text-center">
             <button
-              onClick={() => window.location.href = '/'}
+              onClick={() => window.location.href = '/app'}
               className="text-xs font-semibold text-[var(--accent-strong)] underline"
             >
               Start a new debate
@@ -245,6 +255,7 @@ export default function RunPage() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }
