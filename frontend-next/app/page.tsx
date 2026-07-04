@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { createRun } from '@/lib/api';
 import { addRun } from '@/lib/storage';
 import { Upload, X, ArrowRight, Loader2 } from 'lucide-react';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -46,6 +47,7 @@ export default function LandingPage() {
       </div>
 
       <div className="relative w-full max-w-xl z-10">
+        <AuthGuard>
         {/* Hero */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 mb-5 text-3xl">
@@ -135,7 +137,7 @@ export default function LandingPage() {
             )}
           </button>
         </form>
-
+        </AuthGuard>
       </div>
     </div>
   );
