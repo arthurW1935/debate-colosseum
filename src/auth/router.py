@@ -1,5 +1,5 @@
 import urllib.parse
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from src.config import settings
 from src.auth.google_oauth import get_google_auth_url, exchange_code_for_tokens, get_google_user_info
@@ -17,8 +17,9 @@ async def google_login():
     return {"auth_url": url}
 
 @auth_router.get("/google/callback")
-async def google_callback(code: str):
+async def google_callback(code: str, request: Request):
     """Handles the OAuth callback from Google"""
+    from src.auth.session_manager import get_session_manager
     redirect_uri = f"{settings.API_BASE_URL}/auth/google/callback"
     try:
         tokens = await exchange_code_for_tokens(code, redirect_uri)
@@ -38,6 +39,10 @@ async def google_callback(code: str):
         
         # Use internal DB ID for JWT payload
         jwt_token = create_access_token(user_id=str(db_user.id), email=email, name=name)
+        
+        # Create session
+        manager = get_session_manager()
+        manager.create_session(str(db_user.id), jwt_token, request)
         
         # Redirect to frontend callback page with the token
         frontend_callback = f"{settings.FRONTEND_URL}/auth/callback?token={urllib.parse.quote(jwt_token)}"
