@@ -74,7 +74,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 from src.auth.router import auth_router
-from src.auth.dependencies import get_optional_user
+from src.auth.dependencies import get_current_user
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
@@ -288,7 +288,7 @@ class ReviewResponse(BaseModel):
 @app.post("/runs", response_model=RunCreateResponse, status_code=202)
 async def create_run(
     background_tasks: BackgroundTasks,
-    user: Optional[dict] = Depends(get_optional_user),
+    user: dict = Depends(get_current_user),
     problem_statement: str = Form(...),
     files: Optional[list[UploadFile]] = File(default=None),
 ) -> RunCreateResponse:
@@ -332,7 +332,7 @@ async def create_run(
 
 
 @app.get("/runs/{run_id}/status", response_model=RunStatusResponse)
-async def get_run_status(run_id: str) -> RunStatusResponse:
+async def get_run_status(run_id: str, user: dict = Depends(get_current_user)) -> RunStatusResponse:
     """D1: Poll current run state.
 
     status values:
@@ -364,6 +364,7 @@ async def review_run(
     run_id: str,
     body: ReviewRequest,
     background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user),
 ) -> ReviewResponse:
     """D3: Submit a human review decision.
 

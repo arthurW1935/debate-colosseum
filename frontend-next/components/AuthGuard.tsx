@@ -1,14 +1,20 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { isLoggedIn } from '@/lib/auth';
 import LoginButton from './LoginButton';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     setAuthed(isLoggedIn());
   }, []);
+
+  if (pathname === '/auth/callback') {
+    return <>{children}</>;
+  }
 
   if (authed === null) {
     return <div className="animate-pulse flex space-x-4"><div className="rounded-full bg-white/5 h-10 w-10"></div></div>;

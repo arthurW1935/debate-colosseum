@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 };
 
 import NavBar from '@/components/NavBar';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,7 +18,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-[#0a0a0f] text-white antialiased min-h-screen flex flex-col`}>
         <NavBar />
         <main className="flex-1">
-          {children}
+          <AuthGuard>
+            {children}
+          </AuthGuard>
         </main>
       </body>
     </html>
