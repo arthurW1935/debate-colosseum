@@ -3,12 +3,13 @@ from jose import jwt, JWTError
 from fastapi import HTTPException, status
 from src.config import settings
 
-def create_access_token(user_id: str, email: str, name: str) -> str:
+def create_access_token(user_id: str, email: str, name: str, session_id: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=settings.JWT_EXPIRY_HOURS)
     to_encode = {
         "sub": user_id,
         "email": email,
         "name": name,
+        "session_id": session_id,
         "exp": expire
     }
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)

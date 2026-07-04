@@ -13,6 +13,7 @@ class UserDB(BaseModel):
 class RunDB(BaseModel):
     id: str
     user_id: str
+    session_id: Optional[str] = None
     problem_statement: str
     status: str
     state_json: str

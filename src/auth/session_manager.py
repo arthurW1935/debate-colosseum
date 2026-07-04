@@ -16,7 +16,7 @@ def hash_token(token: str) -> str:
 
 class BaseSessionManager(ABC):
     @abstractmethod
-    def create_session(self, user_id: str, token: str, request: Request) -> str:
+    def create_session(self, user_id: str, token: str, request: Request, session_id: Optional[str] = None) -> str:
         pass
 
     @abstractmethod
@@ -47,8 +47,8 @@ class SupabaseSessionManager(BaseSessionManager):
     def __init__(self, client):
         self.supabase = client
 
-    def create_session(self, user_id: str, token: str, request: Request) -> str:
-        session_id = str(uuid.uuid4())
+    def create_session(self, user_id: str, token: str, request: Request, session_id: Optional[str] = None) -> str:
+        session_id = session_id or str(uuid.uuid4())
         token_hash = hash_token(token)
         now = datetime.datetime.now(datetime.timezone.utc)
         expires_at = now + datetime.timedelta(hours=settings.SESSION_TTL_HOURS)
@@ -110,8 +110,8 @@ class InMemorySessionManager(BaseSessionManager):
         # token_hash -> session_id
         self.tokens = {}
 
-    def create_session(self, user_id: str, token: str, request: Request) -> str:
-        session_id = str(uuid.uuid4())
+    def create_session(self, user_id: str, token: str, request: Request, session_id: Optional[str] = None) -> str:
+        session_id = session_id or str(uuid.uuid4())
         token_hash = hash_token(token)
         now = datetime.datetime.now(datetime.timezone.utc)
         expires_at = now + datetime.timedelta(hours=settings.SESSION_TTL_HOURS)

@@ -16,7 +16,8 @@ def get_optional_user(authorization: Optional[str] = Header(None)) -> Optional[d
         return {
             "id": payload.get("sub"),
             "email": payload.get("email"),
-            "name": payload.get("name")
+            "name": payload.get("name"),
+            "session_id": payload.get("session_id")
         }
     except HTTPException:
         # Invalid token, but since this is optional, we just return None
@@ -32,5 +33,6 @@ def get_current_user(authorization: str = Header(...)) -> dict:
     return {
         "id": payload.get("sub"),
         "email": payload.get("email"),
-        "name": payload.get("name")
+        "name": payload.get("name"),
+        "session_id": payload.get("session_id")
     }

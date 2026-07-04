@@ -37,12 +37,16 @@ async def google_callback(code: str, request: Request):
         # Upsert user into database
         db_user = upsert_user(email=email, name=name, avatar_url=avatar_url, google_id=google_id)
         
+        # Generate session_id for JWT and Database
+        import uuid
+        session_id = str(uuid.uuid4())
+        
         # Use internal DB ID for JWT payload
-        jwt_token = create_access_token(user_id=str(db_user.id), email=email, name=name)
+        jwt_token = create_access_token(user_id=str(db_user.id), email=email, name=name, session_id=session_id)
         
         # Create session
         manager = get_session_manager()
-        manager.create_session(str(db_user.id), jwt_token, request)
+        manager.create_session(str(db_user.id), jwt_token, request, session_id=session_id)
         
         # Redirect to frontend callback page with the token
         frontend_callback = f"{settings.FRONTEND_URL}/auth/callback?token={urllib.parse.quote(jwt_token)}"

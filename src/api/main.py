@@ -368,6 +368,7 @@ async def create_run(
 
     # Use the real user_id extracted from the JWT token
     user_id = user.get("id") or user.get("sub") or "temp_user"
+    session_id = user.get("session_id")
     
     # D2: Record state before execution. (In Phase 1, memory persistence)
     # This also persists to Supabase since we've hooked it up.
@@ -377,6 +378,7 @@ async def create_run(
         problem_statement=problem_statement,
         context_docs=context_docs,
         state=state,
+        session_id=session_id,
     )
 
     record = get_run(run_id)

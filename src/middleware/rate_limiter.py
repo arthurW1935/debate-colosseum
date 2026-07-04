@@ -31,7 +31,8 @@ class RateLimiter:
 general_limiter = RateLimiter()
 run_creation_limiter = RateLimiter()
 
-def get_client_identifier(request: Request) -> str:
+def get_client_info(request: Request) -> dict:
+    info = {"user_id": None, "session_id": None, "ip": request.client.host if request.client else "unknown"}
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
@@ -42,15 +43,11 @@ def get_client_identifier(request: Request) -> str:
                 payload_part += "=" * ((4 - len(payload_part) % 4) % 4)
                 payload_bytes = base64.urlsafe_b64decode(payload_part)
                 payload = json.loads(payload_bytes)
-                user_id = payload.get("user_id") or payload.get("sub")
-                if user_id:
-                    return str(user_id)
+                info["user_id"] = payload.get("sub") or payload.get("user_id")
+                info["session_id"] = payload.get("session_id")
             except Exception:
                 pass
-    
-    if request.client and request.client.host:
-        return request.client.host
-    return "unknown"
+    return info
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -59,7 +56,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path.startswith("/auth/") or path.startswith("/docs") or path == "/openapi.json":
             return await call_next(request)
             
-        identifier = get_client_identifier(request)
+        client_info = get_client_info(request)
+        identifier = client_info["session_id"] or client_info["user_id"] or client_info["ip"]
         
         if path == "/runs" and request.method == "POST":
             limit = settings.RATE_LIMIT_RUNS_PER_HOUR
@@ -76,6 +74,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
             
         if not allowed:
+            # Log to Supabase if available
+            try:
+                from src.db.supabase_client import get_supabase
+                supabase = get_supabase()
+                if supabase:
+                    event_data = {
+                        "session_id": client_info.get("session_id"),
+                        "user_id": client_info.get("user_id"),
+                        "endpoint": path
+                    }
+                    supabase.table("rate_limit_events").insert(event_data).execute()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to log rate limit event: {e}")
+                
             headers = {
                 "Retry-After": str(int(retry_after)),
                 "X-RateLimit-Limit": str(limit),

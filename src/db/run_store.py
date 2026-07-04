@@ -15,7 +15,7 @@ class RunRecord:
     error: Optional[str] = None
     _task: Optional[asyncio.Task] = field(default=None, repr=False)
 
-def create_run(run_id: str, user_id: str, problem_statement: str, context_docs: list[str], state: GraphState) -> str:
+def create_run(run_id: str, user_id: str, problem_statement: str, context_docs: list[str], state: GraphState, session_id: Optional[str] = None) -> str:
     supabase = get_supabase()
     if not supabase:
         raise HTTPException(status_code=500, detail="Database connection not configured (Supabase is missing).")
@@ -23,6 +23,7 @@ def create_run(run_id: str, user_id: str, problem_statement: str, context_docs: 
     data = {
         "id": run_id,
         "user_id": user_id,
+        "session_id": session_id,
         "problem_statement": problem_statement,
         "status": "running",
         "state_json": state.model_dump_json(),
