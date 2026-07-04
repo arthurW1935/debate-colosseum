@@ -2,7 +2,11 @@
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
-export default function LoginButton() {
+interface LoginButtonProps {
+  className?: string;
+}
+
+export default function LoginButton({ className = '' }: LoginButtonProps) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -24,7 +28,7 @@ export default function LoginButton() {
     <button
       onClick={handleLogin}
       disabled={loading}
-      className="flex items-center gap-3 px-6 py-3 bg-white text-black font-semibold rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+      className={`flex items-center gap-3 rounded-full bg-[var(--text-primary)] px-6 py-3 font-semibold text-[var(--app-bg)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     >
       {loading ? (
         <Loader2 className="w-5 h-5 animate-spin" />
@@ -36,7 +40,7 @@ export default function LoginButton() {
           <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
         </svg>
       )}
-      Sign in with Google
+      Continue with Google
     </button>
   );
 }

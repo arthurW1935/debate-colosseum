@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAuthHeaders, getToken } from "@/lib/auth";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 type SessionInfo = {
   id: string;
@@ -16,12 +19,11 @@ export default function ActiveSessions() {
   const [loading, setLoading] = useState(true);
 
   const fetchSessions = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!getToken()) return;
     
     try {
-      const res = await fetch("http://localhost:8000/auth/sessions", {
-        headers: { "Authorization": `Bearer ${token}` }
+      const res = await fetch(`${API_BASE}/api/sessions/sessions`, {
+        headers: getAuthHeaders()
       });
       if (res.ok) {
         const data = await res.json();
@@ -39,19 +41,17 @@ export default function ActiveSessions() {
   }, []);
 
   const handleRevoke = async (id: string) => {
-    const token = localStorage.getItem("token");
-    await fetch(`http://localhost:8000/auth/sessions/${id}`, {
+    await fetch(`${API_BASE}/api/sessions/sessions/${id}`, {
       method: "DELETE",
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: getAuthHeaders()
     });
     fetchSessions();
   };
 
   const handleRevokeAll = async () => {
-    const token = localStorage.getItem("token");
-    await fetch(`http://localhost:8000/auth/logout-all`, {
+    await fetch(`${API_BASE}/api/sessions/logout-all`, {
       method: "POST",
-      headers: { "Authorization": `Bearer ${token}` }
+      headers: getAuthHeaders()
     });
     fetchSessions();
   };

@@ -1,34 +1,40 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { isLoggedIn } from '@/lib/auth';
-import LoginButton from './LoginButton';
+import { Loader2 } from 'lucide-react';
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    setAuthed(isLoggedIn());
-  }, []);
+    const loggedIn = isLoggedIn();
+    setAuthed(loggedIn);
+    if (!loggedIn && pathname !== '/auth/callback') {
+      router.replace('/');
+    }
+  }, [pathname, router]);
 
   if (pathname === '/auth/callback') {
     return <>{children}</>;
   }
 
   if (authed === null) {
-    return <div className="animate-pulse flex space-x-4"><div className="rounded-full bg-white/5 h-10 w-10"></div></div>;
+    return (
+      <div className="executive-shell flex min-h-screen items-center justify-center text-[var(--text-secondary)]">
+        <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
+      </div>
+    );
   }
 
   if (!authed) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center z-10 relative">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 mb-5 text-3xl">
-          🔒
+      <div className="executive-shell flex min-h-screen items-center justify-center text-center text-[var(--text-secondary)]">
+        <div className="glass-panel rounded-3xl px-6 py-5 text-sm">
+          Redirecting to sign in...
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Sign in to Debate Colosseum</h2>
-        <p className="text-slate-400 mb-8 max-w-sm">Join to create debates and get insights from our AI agents.</p>
-        <LoginButton />
       </div>
     );
   }

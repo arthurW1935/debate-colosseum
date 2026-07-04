@@ -1,8 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { getUserFromToken, removeToken } from '@/lib/auth';
+import { logoutCurrentSession } from '@/lib/session';
+import { LogOut } from 'lucide-react';
 
-export default function UserMenu() {
+export default function UserMenu({ compact = false }: { compact?: boolean }) {
   const [user, setUser] = useState<{ id: string; email: string; name: string } | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -12,33 +14,50 @@ export default function UserMenu() {
 
   if (!user) return null;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logoutCurrentSession();
     removeToken();
-    window.location.reload();
+    window.location.href = '/';
   };
+
+  const initial = (user.name || user.email || 'U').charAt(0);
 
   return (
     <div className="relative z-50">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+        className={`flex w-full items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/75 text-[var(--text-primary)] shadow-sm transition hover:-translate-y-0.5 hover:bg-[var(--surface)] ${
+          compact ? 'h-11 justify-center px-0' : 'px-3 py-2.5'
+        }`}
+        aria-label="Open user menu"
       >
-        <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold uppercase">
-          {user.name.charAt(0)}
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--text-primary)] text-xs font-bold uppercase text-[var(--app-bg)]">
+          {initial}
         </div>
-        <span className="text-sm font-medium text-slate-200">{user.name}</span>
+        {!compact && (
+          <div className="min-w-0 text-left">
+            <p className="truncate text-xs font-semibold">{user.name || user.email}</p>
+            <p className="truncate text-[10px] text-[var(--text-tertiary)]">{user.email}</p>
+          </div>
+        )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-48 rounded-xl bg-[#1a1a24]/90 backdrop-blur-xl border border-white/10 shadow-2xl overflow-hidden py-1">
-          <div className="px-4 py-2 border-b border-white/5">
-            <p className="text-xs text-slate-400 truncate">{user.email}</p>
+        <div
+          className={`absolute bottom-full mb-2 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]/95 py-1 shadow-[var(--shadow-card)] backdrop-blur-xl ${
+            compact ? 'left-0 w-56' : 'left-0 right-0'
+          }`}
+        >
+          <div className="border-b border-[var(--border)] px-4 py-2">
+            <p className="truncate text-xs font-semibold text-[var(--text-primary)]">{user.name || 'Signed in'}</p>
+            <p className="truncate text-[10px] text-[var(--text-tertiary)]">{user.email}</p>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 transition-colors"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs font-semibold text-[var(--danger)] transition hover:bg-[var(--danger)]/10"
           >
-            Sign Out
+            <LogOut className="h-3.5 w-3.5" />
+            Log out
           </button>
         </div>
       )}

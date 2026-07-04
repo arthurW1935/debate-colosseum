@@ -23,7 +23,7 @@ export default function NavBar() {
                 <div className="w-8 h-8 rounded bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/20">
                     DC
                 </div>
-                <Link href="/" className="text-xl font-semibold text-white tracking-tight">
+                <Link href={authenticated ? "/app" : "/"} className="text-xl font-semibold text-white tracking-tight">
                     Debate Colosseum
                 </Link>
             </div>

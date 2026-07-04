@@ -24,6 +24,11 @@ export function addRun(run: StoredRun): void {
   localStorage.setItem(KEY, JSON.stringify(runs.slice(0, 50)));
 }
 
+export function setRuns(runs: StoredRun[]): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(KEY, JSON.stringify(runs.slice(0, 50)));
+}
+
 export function updateRunStatus(runId: string, status: RunStatus): void {
   const runs = getRuns();
   const run = runs.find(r => r.run_id === runId);

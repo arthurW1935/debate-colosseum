@@ -1,17 +1,15 @@
 "use client";
 
+import { getAuthHeaders, getToken, removeToken } from './auth';
+
 let refreshInterval: NodeJS.Timeout | null = null;
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
 
 export async function validateSession(): Promise<boolean> {
-  const token = localStorage.getItem("token");
-  if (!token) return false;
+  if (!getToken()) return false;
 
   try {
-    const res = await fetch("http://localhost:8000/auth/me", {
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    });
+    const res = await fetch(`${API_BASE}/auth/me`, { headers: getAuthHeaders() });
     return res.ok;
   } catch (error) {
     console.error("Session validation error:", error);
@@ -20,23 +18,31 @@ export async function validateSession(): Promise<boolean> {
 }
 
 export async function refreshSession() {
-  const token = localStorage.getItem("token");
-  if (!token) return;
+  if (!getToken()) return;
 
   try {
-    await fetch("http://localhost:8000/auth/me", {
-      headers: {
-        "Authorization": `Bearer ${token}`
-      }
-    });
+    await fetch(`${API_BASE}/api/sessions/me`, { headers: getAuthHeaders() });
   } catch (error) {
     console.error("Session refresh error:", error);
   }
 }
 
+export async function logoutCurrentSession() {
+  if (!getToken()) return;
+
+  try {
+    await fetch(`${API_BASE}/api/sessions/logout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+  } catch (error) {
+    console.error("Session logout error:", error);
+  }
+}
+
 export function handleSessionExpired() {
-  localStorage.removeItem("token");
-  window.location.href = "/login?expired=true";
+  removeToken();
+  window.location.href = "/";
 }
 
 export function startSessionRefresh() {

@@ -13,19 +13,19 @@ function CallbackInner() {
     if (token) {
       saveToken(token);
     }
-    router.push('/');
+    router.push('/app');
   }, [router, searchParams]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
-      <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+    <div className="executive-shell flex min-h-screen items-center justify-center text-[var(--text-primary)]">
+      <Loader2 className="h-8 w-8 animate-spin text-[var(--accent)]" />
     </div>
   );
 }
 
 export default function AuthCallback() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0a0a0f]" />}>
+    <Suspense fallback={<div className="executive-shell min-h-screen" />}>
       <CallbackInner />
     </Suspense>
   );

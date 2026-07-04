@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { validateSession, startSessionRefresh, stopSessionRefresh, handleSessionExpired } from "@/lib/session";
+import { getToken } from "@/lib/auth";
 import { usePathname } from "next/navigation";
 
 export default function SessionManager() {
@@ -18,8 +19,7 @@ export default function SessionManager() {
     };
 
     const checkSession = async () => {
-      const token = localStorage.getItem("token");
-      if (token) {
+      if (getToken()) {
         const isValid = await validateSession();
         if (!isValid) {
           handleSessionExpired();
