@@ -38,7 +38,7 @@ jobs:
 
           set -e
 
-          APP_DIR="$HOME/debate_colosseum"
+          APP_DIR="$HOME/debate-colosseum"
 
           ####################################
           # Clone repository if first deploy
