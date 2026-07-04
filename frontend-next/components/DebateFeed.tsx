@@ -1,102 +1,8 @@
 'use client';
+import { useEffect, useMemo, useState } from 'react';
 import { RunStatusResponse, MemoVersion } from '@/types';
 import MemoCard from './MemoCard';
-import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
-
-const AGENT_ICON: Record<string, string> = { growth: '📈', finance: '💰', risk: '⚠️' };
-
-function PhaseRow({
-  icon,
-  label,
-  done,
-  active,
-}: {
-  icon: string;
-  label: string;
-  done: boolean;
-  active?: boolean;
-}) {
-  return (
-    <div className={`flex items-center gap-2.5 ${!done && !active ? 'opacity-35' : ''}`}>
-      {done ? (
-        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-      ) : active ? (
-        <Loader2 className="w-4 h-4 text-indigo-400 animate-spin shrink-0" />
-      ) : (
-        <Circle className="w-4 h-4 text-slate-700 shrink-0" />
-      )}
-      <span className={`text-sm ${done ? 'text-slate-300' : active ? 'text-indigo-300' : 'text-slate-600'}`}>
-        <span className="mr-1.5">{icon}</span>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function TurnBlock({
-  turn,
-  done,
-  active,
-  expertSummaries,
-}: {
-  turn: number;
-  done: boolean;
-  active: boolean;
-  expertSummaries?: { role: string; rec: string; conf: number }[];
-}) {
-  return (
-    <div className={!done && !active ? 'opacity-35' : ''}>
-      <div className="flex items-center gap-2.5 mb-2">
-        <div
-          className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-            done
-              ? 'bg-emerald-500 text-black'
-              : active
-              ? 'bg-indigo-500 text-white'
-              : 'bg-slate-800 text-slate-500'
-          }`}
-        >
-          {turn}
-        </div>
-        <span
-          className={`text-sm font-medium ${
-            done ? 'text-slate-300' : active ? 'text-indigo-300' : 'text-slate-600'
-          }`}
-        >
-          Turn {turn} — Expert Analysis
-        </span>
-        {active && <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />}
-        {done && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
-      </div>
-
-      <div className="ml-7 space-y-1.5 mb-1">
-        {(['growth', 'finance', 'risk'] as const).map(role => {
-          const pos = expertSummaries?.find(p => p.role === role);
-          return (
-            <div key={role} className="flex items-center gap-2">
-              {done ? (
-                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-              ) : active ? (
-                <Loader2 className="w-3 h-3 text-indigo-400 animate-spin shrink-0" />
-              ) : (
-                <Circle className="w-3 h-3 text-slate-700 shrink-0" />
-              )}
-              <span className={`text-xs ${done || active ? 'text-slate-400' : 'text-slate-700'}`}>
-                {AGENT_ICON[role]}{' '}
-                <span className="capitalize">{role}</span> Agent
-                {pos && (
-                  <span className="text-slate-600 ml-1.5">
-                    — {pos.rec} · {Math.round(pos.conf * 100)}%
-                  </span>
-                )}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
+import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 interface DebateFeedProps {
   status: RunStatusResponse;
@@ -104,149 +10,250 @@ interface DebateFeedProps {
   problemStatement: string;
 }
 
-export default function DebateFeed({ status, memoVersions, problemStatement }: DebateFeedProps) {
-  const { current_turn, status: s, feedback_round, guardrail_passed, final_memo } = status;
+const AGENTS = [
+  { label: 'Growth', sub: 'market perspective', x: 150, y: 118, color: 'var(--cobalt)', delay: '' },
+  { label: 'Finance', sub: 'capital perspective', x: 150, y: 300, color: 'var(--emerald)', delay: 'agent-float-delay' },
+  { label: 'Risk', sub: 'downside perspective', x: 510, y: 118, color: 'var(--danger)', delay: 'agent-float-delay' },
+  { label: 'Arbiter', sub: 'dispute handler', x: 510, y: 300, color: '#b78cff', delay: '' },
+  { label: 'Synthesizer', sub: 'memo drafter', x: 330, y: 390, color: 'var(--accent)', delay: 'agent-float-delay' },
+];
 
-  const hasMemo = memoVersions.length > 0;
-  const isTerminal = s === 'awaiting_review' || s === 'completed';
+const TYPING_LINES = [
+  'Specialists are debating from their strongest perspectives.',
+  'They are the best in their own specific fields.',
+  'Please stay calm while they shout at each other.',
+];
 
-  const turn1Done = current_turn >= 2 || isTerminal;
-  const turn1Active = !turn1Done && s === 'running';
+function AgentNode({ agent }: { agent: (typeof AGENTS)[number] }) {
+  return (
+    <g className={`agent-float ${agent.delay}`} style={{ transformOrigin: `${agent.x}px ${agent.y}px` }}>
+      <circle cx={agent.x} cy={agent.y} r="46" fill={agent.color} opacity="0.14" />
+      <circle cx={agent.x} cy={agent.y} r="34" fill="var(--surface)" stroke="var(--border)" />
+      <circle cx={agent.x} cy={agent.y - 12} r="10" fill={agent.color} />
+      <text x={agent.x} y={agent.y + 60} textAnchor="middle" fill="var(--text-primary)" fontSize="14" fontWeight="650">
+        {agent.label}
+      </text>
+      <text x={agent.x} y={agent.y + 80} textAnchor="middle" fill="var(--text-tertiary)" fontSize="11">
+        {agent.sub}
+      </text>
+    </g>
+  );
+}
 
-  const showTurn2 = current_turn >= 2 || isTerminal;
-  const turn2Done = isTerminal;
-  const turn2Active = showTurn2 && !turn2Done && s === 'running';
+function AgentOrchestration({ revision }: { revision?: number }) {
+  const [lineIndex, setLineIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
-  const modT1Done = turn1Done;
+  useEffect(() => {
+    const current = TYPING_LINES[lineIndex];
+    const delay = !deleting && displayedText === current ? 1300 : deleting && displayedText === '' ? 300 : 34;
 
-  const expertSummaries = final_memo?.expert_positions.map(p => ({
-    role: p.agent_role,
-    rec: p.recommendation,
-    conf: p.confidence,
-  }));
+    const timer = setTimeout(() => {
+      if (!deleting && displayedText.length < current.length) {
+        setDisplayedText(current.slice(0, displayedText.length + 1));
+        return;
+      }
 
-  const isReprocessing = s === 'running' && feedback_round > 0 && memoVersions.length <= feedback_round;
+      if (!deleting && displayedText === current) {
+        setDeleting(true);
+        return;
+      }
+
+      if (deleting && displayedText.length > 0) {
+        setDisplayedText(current.slice(0, displayedText.length - 1));
+        return;
+      }
+
+      setDeleting(false);
+      setLineIndex(index => (index + 1) % TYPING_LINES.length);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [deleting, displayedText, lineIndex]);
 
   return (
-    <div className="space-y-4 pb-4 max-w-3xl mx-auto">
-      {/* Problem */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5">
-        <p className="text-[10px] font-semibold text-indigo-400 uppercase tracking-widest mb-2">
-          Problem Statement
-        </p>
-        <p className="text-sm text-slate-300 leading-relaxed">{problemStatement}</p>
+    <div className="relative flex min-h-[calc(100vh-96px)] overflow-hidden">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[40%] h-[540px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--cobalt)]/10 blur-[110px]" />
+        <div className="absolute bottom-0 right-0 h-[360px] w-[420px] rounded-full bg-[var(--accent)]/10 blur-[100px]" />
       </div>
 
-      {/* Running notice */}
-      {s === 'running' && !isReprocessing && (
-        <div className="rounded-xl bg-blue-500/5 border border-blue-500/15 px-4 py-3 flex items-center gap-2.5">
-          <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin shrink-0" />
-          <p className="text-xs text-blue-300">
-            Agents are deliberating — each run makes ~25 LLM calls across 3 expert agents, moderator, arbiter &amp; synthesizer.
-            <span className="text-blue-400/60 ml-1">Typically 3–6 min.</span>
+      <div className="relative z-10 flex w-full flex-col p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--accent)]">
+            Live debate
           </p>
+          <h2 className="mt-2 text-2xl font-semibold text-[var(--text-primary)]">
+            Specialists are debating
+          </h2>
         </div>
-      )}
-
-      {/* Phase progress */}
-      <div className="rounded-2xl bg-white/[0.03] border border-white/[0.06] p-5 space-y-2.5">
-        <PhaseRow icon="📚" label="Context Ingestion" done />
-
-        <TurnBlock
-          turn={1}
-          done={turn1Done}
-          active={turn1Active}
-          expertSummaries={turn1Done ? expertSummaries : undefined}
-        />
-
-        {modT1Done && (
-          <PhaseRow icon="⚖️" label="Moderator — Disagreement Scoring" done />
-        )}
-
-        {showTurn2 && (
-          <TurnBlock
-            turn={2}
-            done={turn2Done}
-            active={turn2Active}
-            expertSummaries={turn2Done ? expertSummaries : undefined}
-          />
-        )}
-
-        {(hasMemo || (isTerminal && !hasMemo)) && (
-          <PhaseRow
-            icon="🔮"
-            label="Synthesizer — Decision Memo"
-            done={hasMemo}
-            active={!hasMemo && s === 'running'}
-          />
-        )}
-
-        {guardrail_passed && (
-          <PhaseRow icon="🛡️" label="Guardrail Check — Passed" done />
-        )}
+        <div className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-3 py-2 text-xs text-[var(--text-secondary)] shadow-sm">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent)]" />
+          {revision ? `Refinement v${revision} in progress` : 'Working live'}
+        </div>
       </div>
 
-      {/* Memo versions with feedback dividers */}
-      {memoVersions.map((mv, idx) => (
-        <div key={mv.version} className="space-y-3">
-          {/* Feedback text shown before this version (if it's a revision) */}
-          {mv.feedbackText && (
-            <div className="flex items-start gap-3">
-              <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                <span className="text-xs">💬</span>
-              </div>
-              <div className="flex-1 rounded-xl bg-amber-500/5 border border-amber-500/15 px-4 py-3">
-                <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-widest mb-1">
-                  Your Feedback — Round {mv.version - 1}
-                </p>
-                <p className="text-xs text-amber-300/80 leading-relaxed">{mv.feedbackText}</p>
-              </div>
+      <div className="relative mx-auto flex min-h-0 flex-1 items-center justify-center pb-20">
+        <div className="h-[min(56vh,500px)] w-full max-w-4xl">
+        <svg viewBox="0 0 660 500" className="h-full w-full">
+          <defs>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="6" result="coloredBlur" />
+              <feMerge>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {AGENTS.map(agent => (
+            <line
+              key={`line-${agent.label}`}
+              x1="330"
+              y1="235"
+              x2={agent.x}
+              y2={agent.y}
+              stroke="var(--border-strong)"
+              opacity="0.62"
+              strokeWidth="2"
+              className="agent-edge"
+            />
+          ))}
+          <circle cx="330" cy="235" r="74" fill="var(--accent)" opacity="0.12" filter="url(#glow)" />
+          <foreignObject x="264" y="169" width="132" height="132">
+            <div className="moderator-pulse flex h-full w-full flex-col items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] text-center shadow-[var(--shadow-card)]">
+              <span className="text-sm font-semibold text-[var(--text-primary)]">Moderator</span>
+              <span className="mt-1 text-[11px] text-[var(--text-tertiary)]">managing the debate</span>
             </div>
-          )}
-
-          {/* Version label */}
-          <div className="flex items-center gap-3">
-            <div className="h-px bg-white/[0.05] flex-1" />
-            <span className="text-[11px] font-medium text-slate-600 px-1">
-              Decision Memo — Version {mv.version}
-            </span>
-            <div className="h-px bg-white/[0.05] flex-1" />
-          </div>
-
-          <MemoCard memo={mv.memo} version={mv.version} isLatest={idx === memoVersions.length - 1} />
+          </foreignObject>
+          {AGENTS.map(agent => <AgentNode key={agent.label} agent={agent} />)}
+        </svg>
         </div>
-      ))}
+      </div>
 
-      {/* Re-processing spinner */}
-      {isReprocessing && (
-        <div className="rounded-2xl bg-indigo-500/5 border border-indigo-500/20 p-4">
-          <div className="flex items-center gap-2.5">
-            <Loader2 className="w-4 h-4 text-indigo-400 animate-spin shrink-0" />
-            <p className="text-sm text-indigo-300">
-              Revision v{feedback_round + 1} in progress — agents re-deliberating…
-            </p>
+      <div className="absolute bottom-36 left-1/2 min-h-[28px] w-[min(90vw,42rem)] -translate-x-1/2 text-center">
+        <p className="text-sm font-medium leading-7 text-[var(--text-secondary)]">
+          {displayedText}
+          <span className="ml-0.5 inline-block h-4 w-px translate-y-0.5 animate-pulse bg-[var(--accent)]" />
+        </p>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DebateFeed({ status, memoVersions, problemStatement }: DebateFeedProps) {
+  const { status: s, feedback_round } = status;
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [queryTrailOpen, setQueryTrailOpen] = useState(false);
+
+  const hasMemo = memoVersions.length > 0;
+  const isReprocessing = s === 'running' && feedback_round > 0 && memoVersions.length <= feedback_round;
+  const latestVersion = memoVersions[memoVersions.length - 1]?.version ?? null;
+
+  useEffect(() => {
+    if (latestVersion && selectedVersion === null) setSelectedVersion(latestVersion);
+    if (latestVersion && selectedVersion && selectedVersion > latestVersion) setSelectedVersion(latestVersion);
+  }, [latestVersion, selectedVersion]);
+
+  const selectedMemo = useMemo(() => {
+    if (!memoVersions.length) return null;
+    return memoVersions.find(mv => mv.version === selectedVersion) ?? memoVersions[memoVersions.length - 1];
+  }, [memoVersions, selectedVersion]);
+
+  const queryTrail = useMemo(() => {
+    const trail = [{ label: 'Initial brief', text: problemStatement || 'Decision brief unavailable' }];
+    memoVersions.forEach(mv => {
+      if (mv.feedbackText) {
+        trail.push({ label: `Refinement ${mv.version}`, text: mv.feedbackText });
+      }
+    });
+    return trail;
+  }, [memoVersions, problemStatement]);
+
+  if (s === 'running' && (!hasMemo || isReprocessing)) {
+    return (
+      <div className="-mx-4 -my-6 sm:-mx-6">
+        <AgentOrchestration revision={isReprocessing ? feedback_round + 1 : undefined} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex h-full w-full max-w-[86rem] flex-col pb-24">
+      {selectedMemo && (
+        <>
+          <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setQueryTrailOpen(open => !open)}
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)]/80 px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] shadow-sm transition hover:-translate-y-0.5 hover:text-[var(--text-primary)]"
+            >
+              {queryTrailOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
+              {queryTrailOpen ? 'Hide query trail' : 'Show query trail'}
+            </button>
+
+            {memoVersions.length > 0 && (
+              <select
+                value={selectedMemo.version}
+                onChange={e => setSelectedVersion(Number(e.target.value))}
+                className="memo-version-select rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] outline-none"
+              >
+                {memoVersions.map(mv => (
+                  <option key={mv.version} value={mv.version}>
+                    Version {mv.version}{mv.version === latestVersion ? ' (latest)' : ''}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
+
+          <div
+            className={
+              queryTrailOpen
+                ? 'grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[250px_minmax(0,1fr)]'
+                : 'mx-auto min-h-0 w-full max-w-[1120px] flex-1'
+            }
+          >
+            {queryTrailOpen && (
+              <aside className="glass-panel flex min-h-0 flex-col rounded-[28px] p-5">
+                <p className="text-sm font-semibold text-[var(--text-primary)]">Query trail</p>
+                <div className="mt-5 min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
+                  {queryTrail.map((item, idx) => (
+                    <div key={`${item.label}-${idx}`} className="relative pl-6">
+                      {idx < queryTrail.length - 1 && (
+                        <span className="absolute left-[5px] top-5 h-[calc(100%+20px)] w-px bg-[var(--border)]" />
+                      )}
+                      <span className={`absolute left-0 top-1 h-2.5 w-2.5 rounded-full ${idx === queryTrail.length - 1 ? 'bg-[var(--accent)]' : 'bg-[var(--border-strong)]'}`} />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--accent-strong)]">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{item.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </aside>
+            )}
+
+            <MemoCard
+              memo={selectedMemo.memo}
+              version={selectedMemo.version}
+              isLatest={selectedMemo.version === latestVersion}
+            />
+          </div>
+        </>
+      )}
+
+      {!selectedMemo && s !== 'running' && (
+        <div className="glass-panel rounded-[28px] p-8 text-center text-sm text-[var(--text-secondary)]">
+          The memo is not ready yet. The specialists will return with a decision memo once the debate finishes.
         </div>
       )}
 
-      {/* Completed banner */}
-      {s === 'completed' && status.action_status && (
-        <div className="rounded-2xl bg-emerald-500/8 border border-emerald-500/20 p-4">
-          <div className="flex items-center gap-2.5">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <p className="text-sm text-emerald-300">
-              {status.action_status === 'sent'
-                ? 'Debate complete — memo sent to Slack ✓'
-                : `Complete — ${status.action_status}`}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Error banner */}
       {s === 'error' && status.error && (
-        <div className="rounded-2xl bg-red-500/8 border border-red-500/20 p-4">
-          <p className="text-sm text-red-400">
+        <div className="mt-6 rounded-3xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 p-4">
+          <p className="text-sm text-[var(--danger)]">
             <span className="font-semibold">Error: </span>
             {status.error}
           </p>
