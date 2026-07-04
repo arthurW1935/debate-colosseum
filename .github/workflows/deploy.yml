@@ -1,0 +1,239 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - production
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.ssh
+
+          cat <<'EOF' > ~/.ssh/deploy_key
+          ${{ secrets.EC2_SSH_KEY }}
+          EOF
+
+          chmod 600 ~/.ssh/deploy_key
+
+          ssh-keygen -y -f ~/.ssh/deploy_key >/dev/null
+
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy application
+        run: |
+          ssh -o StrictHostKeyChecking=yes \
+              -i ~/.ssh/deploy_key \
+              ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<'ENDSSH'
+
+          set -euo pipefail
+
+          APP_DIR="$HOME/debate-colosseum"
+
+          ################################################
+          # Clone repository (first deployment only)
+          ################################################
+          if [ ! -d "$APP_DIR/.git" ]; then
+            echo "==> Cloning repository..."
+            git clone https://github.com/neeldholiya04/debate_colosseum.git "$APP_DIR"
+          fi
+
+          cd "$APP_DIR"
+
+          ################################################
+          # Pull latest code
+          ################################################
+          git fetch origin production
+          git reset --hard origin/production
+
+          ################################################
+          # Backend environment
+          ################################################
+          cat > .env <<EOF
+          LLM_PROVIDER=${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL=${{ secrets.LLM_MODEL }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_CLOUD_PROJECT=${{ secrets.GOOGLE_CLOUD_PROJECT }}
+          LANGSMITH_TRACING=true
+          LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+          LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_PROJECT=${{ secrets.LANGSMITH_PROJECT }}
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+          EOF
+
+          ################################################
+          # Frontend environment
+          ################################################
+          mkdir -p frontend-next
+
+          cat > frontend-next/.env.local <<EOF
+          NEXT_PUBLIC_API_BASE=${{ secrets.NEXT_PUBLIC_API_BASE }}/api
+          EOF
+
+          ################################################
+          # Install required packages (if missing)
+          ################################################
+          if ! command -v nginx >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y nginx
+          fi
+
+          if ! command -v python3 >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y python3 python3-venv python3-pip
+          fi
+
+          if ! command -v node >/dev/null; then
+            echo "Node.js is not installed."
+            exit 1
+          fi
+
+          ################################################
+          # Stop services before touching venv/build
+          # (avoid racing an in-place package install
+          # against a live process holding the old venv open)
+          ################################################
+          sudo systemctl stop debate-backend || true
+          sudo systemctl stop debate-frontend || true
+
+          ################################################
+          # Python virtual environment
+          ################################################
+          if [ ! -f ".venv/bin/activate" ]; then
+            echo "==> Creating virtual environment..."
+            rm -rf .venv
+            python3 -m venv .venv
+          fi
+
+          source .venv/bin/activate
+
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # Sanity check before we ever try to start the app on this venv
+          .venv/bin/python -c "import langchain" || {
+            echo "langchain failed to import after install — aborting deploy"
+            exit 1
+          }
+
+          ################################################
+          # Build frontend
+          ################################################
+          cd frontend-next
+
+          npm ci
+          npm run build
+
+          cd ..
+
+          ################################################
+          # Install systemd services
+          ################################################
+          sudo cp deploy/debate-backend.service /etc/systemd/system/
+          sudo cp deploy/debate-frontend.service /etc/systemd/system/
+
+          sudo systemctl daemon-reload
+
+          sudo systemctl enable debate-backend
+          sudo systemctl enable debate-frontend
+
+          ################################################
+          # Install nginx config ONLY if it doesn't exist
+          ################################################
+          if [ ! -f /etc/nginx/sites-available/debate-colosseum ]; then
+              echo "==> Installing nginx configuration..."
+
+              sudo cp deploy/nginx.conf /etc/nginx/sites-available/debate-colosseum
+
+              sudo ln -sf \
+                  /etc/nginx/sites-available/debate-colosseum \
+                  /etc/nginx/sites-enabled/debate-colosseum
+
+              sudo rm -f /etc/nginx/sites-enabled/default
+          else
+              echo "==> Existing nginx configuration found. Skipping."
+          fi
+
+          ################################################
+          # Validate nginx
+          ################################################
+          sudo nginx -t
+
+          ################################################
+          # Start application
+          # (fresh start, not restart — already stopped above)
+          ################################################
+          sudo systemctl start debate-backend
+          sudo systemctl start debate-frontend
+
+          ################################################
+          # Reload nginx
+          ################################################
+          sudo systemctl reload nginx
+
+          ENDSSH
+
+      - name: Health Check Frontend
+        run: |
+          for i in {1..12}; do
+
+            STATUS=$(curl -k \
+              -o /dev/null \
+              -s \
+              -w "%{http_code}" \
+              https://debate-colosseum.neeldholiya.me/)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "Frontend healthy"
+              exit 0
+            fi
+
+            echo "Attempt $i: got $STATUS"
+
+            sleep 5
+
+          done
+
+          echo "Frontend health check failed"
+          exit 1
+
+      - name: Health Check Backend
+        run: |
+          for i in {1..12}; do
+
+            STATUS=$(curl -k \
+              -o /dev/null \
+              -s \
+              -w "%{http_code}" \
+              https://debate-colosseum.neeldholiya.me/docs)
+
+            if [ "$STATUS" = "200" ]; then
+              echo "Backend healthy"
+              exit 0
+            fi
+
+            echo "Attempt $i: got $STATUS"
+
+            sleep 5
+
+          done
+
+          echo "Backend health check failed"
+          exit 1
