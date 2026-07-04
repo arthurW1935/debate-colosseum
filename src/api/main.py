@@ -24,27 +24,16 @@ from fastapi import BackgroundTasks, Depends, FastAPI, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from src.middleware.rate_limiter import RateLimitMiddleware
+
 from src.config import settings
 from src.hitl.review import handle_review
 from src.schemas import DecisionMemo, GraphState
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Run store — lightweight in-process store for MVP (single-session).
-# A production deployment would use Redis or Postgres.
-# ---------------------------------------------------------------------------
+from src.db.run_store import create_run as store_create_run, get_run, update_run, list_user_runs, RunRecord
 
-@dataclass
-class RunRecord:
-    state: GraphState
-    status: str = "running"   # running | awaiting_review | completed | error
-    error: Optional[str] = None
-    # Background asyncio task reference (kept so we can cancel if needed)
-    _task: Optional[asyncio.Task] = field(default=None, repr=False)
-
-
-_runs: dict[str, RunRecord] = {}
 _checkpointer = None  # initialised in lifespan
 
 
@@ -76,6 +65,8 @@ app.add_middleware(
 from src.auth.router import auth_router
 from src.auth.dependencies import get_current_user
 
+app.add_middleware(RateLimitMiddleware)
+
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # ---------------------------------------------------------------------------
@@ -84,7 +75,9 @@ app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 async def _run_graph(run_id: str, state: GraphState) -> None:
     """Execute the LangGraph graph for a run, handling interrupt pauses."""
-    record = _runs[run_id]
+    record = get_run(run_id)
+    if not record:
+        return
     try:
         # Lazy import — graph.py is wired in Phase 3 (task I1).
         from src.graph import build_graph  # type: ignore[import]
@@ -130,11 +123,15 @@ async def _run_graph(run_id: str, state: GraphState) -> None:
         logger.exception("Graph execution failed for run_id=%s", run_id)
         record.status = "error"
         record.error = str(exc)
+    finally:
+        update_run(run_id, record.status, record.state, record.error)
 
 
 async def _resume_graph(run_id: str) -> None:
     """Resume a graph that was paused at an interrupt (used after HITL feedback)."""
-    record = _runs[run_id]
+    record = get_run(run_id)
+    if not record:
+        return
     try:
         from langgraph.types import Command  # type: ignore[import]
         from src.graph import build_graph  # type: ignore[import]
@@ -175,6 +172,8 @@ async def _resume_graph(run_id: str) -> None:
         logger.exception("Graph resume failed for run_id=%s", run_id)
         record.status = "error"
         record.error = str(exc)
+    finally:
+        update_run(run_id, record.status, record.state, record.error)
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +197,9 @@ def _format_memo_for_slack(memo: DecisionMemo) -> str:
 
 async def _execute_action(run_id: str) -> None:
     """D4: POST the decision memo to the configured Slack webhook."""
-    record = _runs[run_id]
+    record = get_run(run_id)
+    if not record:
+        return
     webhook_url = settings.SLACK_WEBHOOK_URL
 
     if not webhook_url:
@@ -207,6 +208,7 @@ async def _execute_action(run_id: str) -> None:
             update={"action_status": "skipped: SLACK_WEBHOOK_URL not set"}
         )
         record.status = "completed"
+        update_run(run_id, record.status, record.state, record.error)
         return
 
     memo = record.state.final_memo
@@ -215,6 +217,7 @@ async def _execute_action(run_id: str) -> None:
             update={"action_status": "error: no memo available to send"}
         )
         record.status = "completed"
+        update_run(run_id, record.status, record.state, record.error)
         return
 
     try:
@@ -231,6 +234,8 @@ async def _execute_action(run_id: str) -> None:
             update={"action_status": f"error: {exc}"}
         )
         record.status = "completed"
+    finally:
+        update_run(run_id, record.status, record.state, record.error)
 
 
 # ---------------------------------------------------------------------------
@@ -321,11 +326,14 @@ async def create_run(
         run_id=run_id,
     )
 
-    record = RunRecord(state=state)
-    _runs[run_id] = record
+    # Use a dummy user_id for now until auth is integrated
+    user_id = "temp_user"
+    store_create_run(run_id, user_id, problem_statement, context_docs, state)
+    record = get_run(run_id)
 
     task = asyncio.create_task(_run_graph(run_id, state))
-    record._task = task
+    if record:
+        record._task = task
 
     logger.info("Run created: run_id=%s docs=%d", run_id, len(context_docs))
     return RunCreateResponse(run_id=run_id, status="running")
@@ -341,7 +349,7 @@ async def get_run_status(run_id: str, user: dict = Depends(get_current_user)) ->
       completed       — run finished (approved + action sent, or abandoned)
       error           — unhandled exception; see `error` field
     """
-    record = _runs.get(run_id)
+    record = get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
 
@@ -373,7 +381,7 @@ async def review_run(
       feedback  — feedback_text required; graph re-enters processing
       abandoned — saves state, no external action; run ends
     """
-    record = _runs.get(run_id)
+    record = get_run(run_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found")
     if record.status != "awaiting_review":
@@ -392,6 +400,7 @@ async def review_run(
 
     if body.decision == "abandoned":
         record.status = "completed"
+        update_run(run_id, record.status, record.state, record.error)
         return ReviewResponse(
             run_id=run_id,
             status="completed",
@@ -400,6 +409,7 @@ async def review_run(
 
     if body.decision == "approved":
         record.status = "running"
+        update_run(run_id, record.status, record.state, record.error)
         task = asyncio.create_task(_execute_action(run_id))
         record._task = task
         return ReviewResponse(
@@ -410,6 +420,7 @@ async def review_run(
 
     # feedback: resume graph with updated state
     record.status = "running"
+    update_run(run_id, record.status, record.state, record.error)
     task = asyncio.create_task(_resume_graph(run_id))
     record._task = task
     return ReviewResponse(
@@ -417,3 +428,11 @@ async def review_run(
         status="running",
         message=f"Feedback submitted (round {record.state.feedback_round}) — re-processing.",
     )
+
+@app.get("/runs")
+async def list_runs(user_id: Optional[str] = None):
+    # Wait for Auth branch to provide user_id properly, for now use optional query param
+    uid = user_id or "temp_user"
+    runs = list_user_runs(uid)
+    return {"runs": runs}
+

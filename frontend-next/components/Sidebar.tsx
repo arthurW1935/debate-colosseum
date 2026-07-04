@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { getRuns } from '@/lib/storage';
+import { fetchUserRuns } from '@/lib/runs-api';
 import { StoredRun } from '@/types';
 import { Plus, MessageSquare } from 'lucide-react';
 
@@ -20,8 +21,17 @@ export default function Sidebar() {
   const [runs, setRuns] = useState<StoredRun[]>([]);
 
   useEffect(() => {
-    setRuns(getRuns());
-    const id = setInterval(() => setRuns(getRuns()), 3000);
+    const loadRuns = async () => {
+      try {
+        const apiRuns = await fetchUserRuns();
+        setRuns(apiRuns);
+      } catch (e) {
+        console.warn('API fetch failed, falling back to localStorage', e);
+        setRuns(getRuns());
+      }
+    };
+    loadRuns();
+    const id = setInterval(loadRuns, 5000);
     return () => clearInterval(id);
   }, []);
 

@@ -1,6 +1,8 @@
 import { StoredRun, RunStatus } from '@/types';
 
 const KEY = 'debate_colosseum_runs';
+// NOTE: This localStorage is now just a cache/fallback.
+// The actual source of truth is the Supabase DB via fetchUserRuns()
 
 export function getRuns(): StoredRun[] {
   if (typeof window === 'undefined') return [];
