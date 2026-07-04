@@ -73,7 +73,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+from src.auth.router import auth_router
+from src.auth.dependencies import get_optional_user
 
+app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
 # ---------------------------------------------------------------------------
 # Background graph runner
@@ -285,6 +288,7 @@ class ReviewResponse(BaseModel):
 @app.post("/runs", response_model=RunCreateResponse, status_code=202)
 async def create_run(
     background_tasks: BackgroundTasks,
+    user: Optional[dict] = Depends(get_optional_user),
     problem_statement: str = Form(...),
     files: Optional[list[UploadFile]] = File(default=None),
 ) -> RunCreateResponse:

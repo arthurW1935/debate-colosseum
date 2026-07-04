@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     GOOGLE_CLOUD_PROJECT: Optional[str] = None
     TAVILY_API_KEY: Optional[str] = None
 
+    # Google Auth & JWT
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[str] = None
+    JWT_SECRET_KEY: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRY_HOURS: int = 168
+    FRONTEND_URL: str = "http://localhost:3000"
+    API_BASE_URL: str = "http://localhost:8000"
+
     # External action
     SLACK_WEBHOOK_URL: Optional[str] = None
 
