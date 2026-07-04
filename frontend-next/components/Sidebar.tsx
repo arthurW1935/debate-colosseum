@@ -38,7 +38,7 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
 
   if (collapsed) {
     return (
-      <aside className="hidden h-screen w-20 shrink-0 border-r border-[var(--border)] bg-[var(--surface-subtle)]/80 p-3 md:flex md:flex-col md:items-center">
+      <aside className="glass-sidebar hidden h-screen w-20 shrink-0 p-3 md:flex md:flex-col md:items-center">
         <button
           type="button"
           onClick={onToggle}
@@ -60,7 +60,7 @@ export default function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   }
 
   return (
-    <aside className="flex h-screen w-72 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-subtle)]/80">
+    <aside className="glass-sidebar flex h-screen w-72 shrink-0 flex-col">
       <div className="px-5 py-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">

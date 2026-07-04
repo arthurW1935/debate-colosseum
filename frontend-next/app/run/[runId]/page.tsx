@@ -42,7 +42,6 @@ export default function RunPage() {
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const runs = getRuns();
@@ -106,11 +105,6 @@ export default function RunPage() {
       timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
     }
   }, [statusData?.status]);
-
-  // Auto-scroll to bottom when new content arrives
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [memoVersions.length, statusData?.status]);
 
   const handleAction = useCallback(
     (decision: 'approved' | 'feedback' | 'abandoned', feedbackText?: string) => {
@@ -224,7 +218,6 @@ export default function RunPage() {
               Loading run…
             </div>
           )}
-          <div ref={bottomRef} />
         </div>
 
         {(statusData?.status === 'running' || statusData?.status === 'awaiting_review') && (

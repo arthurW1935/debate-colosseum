@@ -47,7 +47,7 @@ function AgentOrchestration({ revision }: { revision?: number }) {
 
   useEffect(() => {
     const current = TYPING_LINES[lineIndex];
-    const delay = !deleting && displayedText === current ? 1300 : deleting && displayedText === '' ? 300 : 34;
+    const delay = !deleting && displayedText === current ? 760 : deleting && displayedText === '' ? 160 : 18;
 
     const timer = setTimeout(() => {
       if (!deleting && displayedText.length < current.length) {
