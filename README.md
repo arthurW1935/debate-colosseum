@@ -118,7 +118,7 @@ The eval scenarios use a synthetic company corpus (NovaSkin, a D2C skincare bran
 
 ## Deployment
 
-Pushing to the `production` branch triggers [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). The workflow connects to an EC2 host over SSH, installs dependencies and restarts the systemd services in [`deploy/`](deploy). Uvicorn runs on `:8000` and Next.js on `:3000`, both behind nginx.
+The live app is at [debate-colosseum.app](https://debate-colosseum.app).
 
 ---
 
